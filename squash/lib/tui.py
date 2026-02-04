@@ -160,7 +160,7 @@ class Tui:
         if type_ is MessageName.PADDING:
             return self.dim(stringified)
 
-        return link(stringified, f'https://google.com/#{int(type_)}')
+        return stringified
 
     def stringify_message_name(self, name: MessageName) -> str:
         return f'{PREFIX}{int(name):04d}'
