@@ -1,4 +1,5 @@
 from enum import IntEnum
+from textwrap import wrap
 from typing import Union, TextIO
 
 EOL = '\n'
@@ -84,6 +85,19 @@ class Tui:
     ):
         output = self.format(message, severity)
         return self.stdout.write(f'\r{output}{erase_end_line()}')
+
+    def boxed(self, msg: str, width: int = 80, padding: int = 1) -> str:
+        inner_width = width - 2 - padding * 2
+        lines = wrap(msg, inner_width)
+
+        top = f'╭{'─' * (width - 2)}╮'
+        bottom = f'╰{'─' * (width - 2)}╯'
+        middle = [
+            f'│{' ' * padding}{line.ljust(inner_width)}{' ' * padding}│'
+            for line in lines
+        ]
+
+        return '\n'.join([top, *middle, bottom])
 
     def erase_line(self):
         self.stdout.write(erase_line())

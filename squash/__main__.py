@@ -8,6 +8,7 @@ from sys import exit, stdout, stderr
 from squash.lib.http import HttpClient
 from squash.lib.tui import Tui, MessageSeverity
 from subprocess import run, PIPE, Popen, DEVNULL
+from squash.lib.host import is_in_windows_terminal
 from squash.lib.errors import MissingBinaryException
 from typing import cast, Literal, Optional, TypedDict
 from squash import APP_NAME, BINARY_PATH, SEVENZIP_PATH, APP_DESCRIPTION
@@ -230,6 +231,11 @@ def _has_required_binaries() -> bool:
     return has_ffmpeg is not None and has_ffprobe is not None
 
 def main() -> int:
+    #region Windows Terminal check
+    if not is_in_windows_terminal():
+        print(tui.boxed('It is highly recommended you use a command line shell like Windows Terminal for the best experience: https://apps.microsoft.com/detail/9n0dx20hk701'))
+    #endregion
+
     #region FFmpeg/FFprobe check
     if not _has_required_binaries():
         tui.writeln('It appears that you are missing FFmpeg and/or FFprobe on your system.', severity=MessageSeverity.WARNING)
