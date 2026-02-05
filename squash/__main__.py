@@ -11,7 +11,7 @@ from subprocess import run, PIPE, Popen, DEVNULL
 from squash.lib.host import is_in_windows_terminal
 from squash.lib.errors import MissingBinaryException
 from typing import cast, Literal, Optional, TypedDict
-from squash import APP_NAME, BINARY_PATH, SEVENZIP_PATH, APP_DESCRIPTION
+from squash import APP_NAME, APP_VERSION_STRING, BINARY_PATH, SEVENZIP_PATH, APP_DESCRIPTION
 
 class EncodeResults(TypedDict):
     success: bool
@@ -270,6 +270,7 @@ def main() -> int:
     parser.add_argument('-t', '--tolerance', help='tolerance', default=2.0, type=float)
     parser.add_argument('-i', '--iterations', help='iterations', default=15, type=int)
     parser.add_argument('-q', '--quality', help='quality', action='count', default=0)
+    parser.add_argument('-v', '--version', help='displays the application version', action='version', version=f'%(prog)s {APP_VERSION_STRING}')
 
     args = parser.parse_args()
     #endregion
