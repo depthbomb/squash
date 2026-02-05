@@ -19,9 +19,9 @@ squash ./my-video.mp4 10
 
 ## Installation
 
-Currently only Windows builds are provided which can be installed via a setup downloaded from the [releases.](https://github.com/depthbomb/squash/releases/latest)
+Currently only Windows is supported and can be installed via a setup downloaded from the [releases.](https://github.com/depthbomb/squash/releases/latest)
 
-The setup will automatically add squash to your system's PATH on install and remove it on uninstall.
+The setup can automatically add Squash to your system's PATH on installation and remove it on uninstallation.
 
 ## Options
 

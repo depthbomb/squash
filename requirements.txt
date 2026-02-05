@@ -1,2 +1,4 @@
+certifi
+
 nuitka==2.8.10
 invoke==2.2.1

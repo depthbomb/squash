@@ -1,4 +1,4 @@
-from os import name
+from os import getcwd
 from pathlib import Path
 from sys import executable
 
@@ -22,7 +22,7 @@ APP_DESCRIPTION = 'A CLI tool to compress a video to a target size while maintai
 APP_ORG = 'Caprine Logic'
 APP_USER_MODEL_ID = u'CaprineLogic.Squash'
 APP_CLSID = '844389F3-A384-4DF0-9E32-A4D6DF80F438'
-APP_VERSION = (1, 0, 1, 0)
+APP_VERSION = (1, 1, 0, 0)
 APP_VERSION_STRING = '.'.join(str(v) for v in APP_VERSION)
 APP_REPO_OWNER = 'depthbomb'
 APP_REPO_NAME = 'Squash'
@@ -33,10 +33,12 @@ APP_NEW_ISSUE_URL = f'https://github.com/{APP_REPO_OWNER}/{APP_REPO_NAME}/issues
 #endregion
 
 #region Paths
-if name == 'nt':
-    BINARY_PATH = Path(executable).with_name(APP_NAME).with_suffix('.exe').resolve()
+BINARY_PATH = Path(executable).with_name(APP_NAME).with_suffix('.exe').resolve()
+
+if IS_COMPILED:
+    SEVENZIP_PATH = BINARY_PATH.parent / 'vendor' / '7za.exe'
 else:
-    BINARY_PATH = Path(executable).with_name(APP_NAME).resolve()
+    SEVENZIP_PATH = Path(getcwd()) / 'resources' / 'vendor' / '7za.exe'
 #endregion
 
 __version__ = APP_VERSION_STRING

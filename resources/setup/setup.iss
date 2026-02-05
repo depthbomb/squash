@@ -26,7 +26,7 @@ LZMAUseSeparateProcess=yes
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 MinVersion=10.0
-WizardStyle=modern dark
+WizardStyle=modern dynamic
 ShowTasksTreeLines=yes
 UninstallDisplayIcon={app}\{#ExeName}
 UninstallDisplayName={#NameLong}
@@ -52,11 +52,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: envPath; Description: "Add to system PATH"
 
 [Files]
-Source: "..\..\build\squash.dist\_bz2.pyd"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\build\squash.dist\_lzma.pyd"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\build\squash.dist\python313.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\build\squash.dist\squash.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\build\squash.dist\vcruntime140.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\build\squash.dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+Source: "..\vendor\*"; DestDir: "{app}\vendor"; Flags: ignoreversion recursesubdirs
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [UninstallDelete]

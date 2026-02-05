@@ -5,11 +5,12 @@ from time import monotonic_ns
 from tempfile import gettempdir
 from argparse import ArgumentParser
 from sys import exit, stdout, stderr
-from subprocess import PIPE, Popen, DEVNULL
+from squash.lib.http import HttpClient
 from squash.lib.tui import Tui, MessageSeverity
+from subprocess import run, PIPE, Popen, DEVNULL
 from squash.lib.errors import MissingBinaryException
 from typing import cast, Literal, Optional, TypedDict
-from squash import APP_NAME, APP_DESCRIPTION, BINARY_PATH
+from squash import APP_NAME, BINARY_PATH, SEVENZIP_PATH, APP_DESCRIPTION
 
 class EncodeResults(TypedDict):
     success: bool
@@ -23,9 +24,6 @@ tui = Tui(stdout, stderr)
 
 def _get_video_info(path: Path) -> tuple[float, int]:
     ffprobe_path = _get_binary_path('ffprobe')
-
-    MissingBinaryException.raise_if(ffprobe_path is None, 'ffprobe not found on system. Please download it and either add it to your PATH or place it alongside the squash binary at %s' % BINARY_PATH.parent)
-
     proc = Popen(
             [ffprobe_path, '-v', 'error', '-show_entries', 'format=duration,bit_rate', '-of', 'json', path],
             stdout=PIPE,
@@ -77,8 +75,6 @@ def _get_encode_settings(quality: int) -> list[str]:
 
 def _encode_video(path: Path, output: Path, video_bitrate: float, audio_bitrate: int, quality: int) -> None:
     ffmpeg_path = _get_binary_path('ffmpeg')
-
-    MissingBinaryException.raise_if(ffmpeg_path is None, 'ffmpeg not found on system. Please download it and either add it to your PATH or place it alongside the squash binary at %s' % BINARY_PATH.parent)
 
     with Popen([
         ffmpeg_path,
@@ -227,7 +223,39 @@ def _get_binary_path(name: Literal['ffmpeg', 'ffprobe']) -> Optional[Path]:
 
     return Path(which_path) if which_path is not None else None
 
+def _has_required_binaries() -> bool:
+    has_ffmpeg = _get_binary_path('ffmpeg')
+    has_ffprobe = _get_binary_path('ffprobe')
+
+    return has_ffmpeg is not None and has_ffprobe is not None
+
 def main() -> int:
+    #region FFmpeg/FFprobe check
+    if not _has_required_binaries():
+        tui.writeln('It appears that you are missing FFmpeg and/or FFprobe on your system.', severity=MessageSeverity.WARNING)
+        tui.write('Would you like to automatically download them?', severity=MessageSeverity.WARNING)
+        if input(' [y/N]\n').lower() != 'y':
+            return 1
+
+        def on_progress(current: int, total: int):
+            tui.erase_line()
+            if current == total:
+                tui.write(f'Finished downloading archive\n', severity=MessageSeverity.SUCCESS)
+            else:
+                tui.write(f'Downloading... ({_format_bytes(current)}/{_format_bytes(total)})')
+
+        download_path = Path(gettempdir()) / 'ffmpeg.7z'
+
+        http = HttpClient()
+        http.download('https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z', download_path, on_progress=on_progress)
+
+        tui.writeln('Extracting...')
+
+        run([SEVENZIP_PATH, 'e', download_path, '-r', f'-o{BINARY_PATH.parent}', '-aoa', 'ffmpeg.exe', 'ffprobe.exe'], stdout=DEVNULL, check=True)
+
+        tui.writeln('Done!')
+    #endregion
+
     #region Argument parsing
     parser = ArgumentParser(prog=APP_NAME, description=APP_DESCRIPTION)
     parser.add_argument('input', help='input video file', type=Path)
