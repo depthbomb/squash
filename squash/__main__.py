@@ -6,9 +6,10 @@ from tempfile import gettempdir
 from argparse import ArgumentParser
 from sys import exit, stdout, stderr
 from subprocess import PIPE, Popen, DEVNULL
+from squash.lib.tui import Tui, MessageSeverity
+from squash.lib.errors import MissingBinaryException
 from typing import cast, Literal, Optional, TypedDict
 from squash import APP_NAME, APP_DESCRIPTION, BINARY_PATH
-from squash.lib.tui import Tui, MessageName, MessageSeverity
 
 class EncodeResults(TypedDict):
     success: bool
@@ -22,8 +23,8 @@ tui = Tui(stdout, stderr)
 
 def _get_video_info(path: Path) -> tuple[float, int]:
     ffprobe_path = _get_binary_path('ffprobe')
-    if ffprobe_path is None:
-        raise Exception('ffprobe not found on system. Please download it and either add it to your PATH or place it alongside the squash binary at %s' % BINARY_PATH.parent)
+
+    MissingBinaryException.raise_if(ffprobe_path is None, 'ffprobe not found on system. Please download it and either add it to your PATH or place it alongside the squash binary at %s' % BINARY_PATH.parent)
 
     proc = Popen(
             [ffprobe_path, '-v', 'error', '-show_entries', 'format=duration,bit_rate', '-of', 'json', path],
@@ -76,8 +77,8 @@ def _get_encode_settings(quality: int) -> list[str]:
 
 def _encode_video(path: Path, output: Path, video_bitrate: float, audio_bitrate: int, quality: int) -> None:
     ffmpeg_path = _get_binary_path('ffmpeg')
-    if ffmpeg_path is None:
-        raise Exception('ffmpeg not found on system. Please download it and either add it to your PATH or place it alongside the squash binary at %s' % BINARY_PATH.parent)
+
+    MissingBinaryException.raise_if(ffmpeg_path is None, 'ffmpeg not found on system. Please download it and either add it to your PATH or place it alongside the squash binary at %s' % BINARY_PATH.parent)
 
     with Popen([
         ffmpeg_path,
@@ -111,7 +112,7 @@ def _encode_video(path: Path, output: Path, video_bitrate: float, audio_bitrate:
                         tui.dim(progress.get('speed')),
                         tui.dim(progress.get('fps')),
                         tui.dim(progress.get('bitrate')),
-                    ), type_=MessageName.PROGRESS
+                    )
                 )
 
         proc.wait()
@@ -127,7 +128,7 @@ def _resize_video_to_target(input_file: Path, target_size_mb: int, output_file: 
     tui.writeln(f'Current size: {tui.bold(_format_bytes(current_video_size))}')
 
     if current_video_size <= target_size_bytes:
-        tui.writeln('Video is already at or under target size. No encoding needed.', type_=MessageName.INPUT_FILE_TOO_SMALL, severity=MessageSeverity.SUCCESS)
+        tui.writeln('Video is already at or under target size. No encoding needed.', severity=MessageSeverity.SUCCESS)
         return {
             'success': True,
             'file_path': input_file,
@@ -158,7 +159,7 @@ def _resize_video_to_target(input_file: Path, target_size_mb: int, output_file: 
         while iteration < iterations:
             iteration += 1
 
-            tui.writeln(f'Iteration {iteration} of {iterations}: encoding at {current_bitrate:.0f}kbps with a {tolerance}% tolerance...', type_=MessageName.ITERATION)
+            tui.writeln(f'Iteration {iteration} of {iterations}: encoding at {current_bitrate:.0f}kbps with a {tolerance}% tolerance...')
 
             _encode_video(input_file, temp_output, current_bitrate, audio_bitrate, quality)
 
@@ -168,7 +169,7 @@ def _resize_video_to_target(input_file: Path, target_size_mb: int, output_file: 
             is_positive_difference = percent_difference < 0
             styled_percent_difference = tui.color_success(f'{percent_difference:.2f}%') if is_positive_difference else tui.color_error(f'+{percent_difference:.2f}%')
 
-            tui.writeln(f'Result: {tui.bold(_format_bytes(new_file_size))} ({styled_percent_difference})', type_=MessageName.ITERATION_RESULT)
+            tui.writeln(f'Result: {tui.bold(_format_bytes(new_file_size))} ({styled_percent_difference})')
 
             if new_file_size < target_size_bytes:
                 gap_to_target = target_size_bytes - new_file_size
@@ -242,12 +243,12 @@ def main() -> int:
     #region Argument validation
     input_file = cast(Path, args.input)
     if not input_file.exists():
-        tui.writeln('Input video file does not exist', type_=MessageName.ARGUMENT_ERROR, severity=MessageSeverity.ERROR)
+        tui.writeln('Input video file does not exist', severity=MessageSeverity.ERROR)
         return 1
 
     target_size_mb = cast(int, args.size)
     if target_size_mb < 1:
-        tui.writeln('Size must be greater than 0', type_=MessageName.ARGUMENT_ERROR, severity=MessageSeverity.ERROR)
+        tui.writeln('Size must be greater than 0', severity=MessageSeverity.ERROR)
         return 1
 
     output_file = cast(Path, args.output)
@@ -256,12 +257,12 @@ def main() -> int:
 
     tolerance = cast(float, args.tolerance)
     if tolerance <= 0.0 or tolerance > 50.0:
-        tui.writeln('Tolerance must be between 0 and 50', type_=MessageName.ARGUMENT_ERROR, severity=MessageSeverity.ERROR)
+        tui.writeln('Tolerance must be between 0 and 50', severity=MessageSeverity.ERROR)
         return 1
 
     iterations = cast(int, args.iterations)
     if iterations <= 0:
-        tui.writeln('Max iterations must be greater than 0', type_=MessageName.ARGUMENT_ERROR, severity=MessageSeverity.ERROR)
+        tui.writeln('Max iterations must be greater than 0', severity=MessageSeverity.ERROR)
         return 1
 
     quality = max(1, min(args.quality, 4))
@@ -269,16 +270,19 @@ def main() -> int:
 
     try:
         results = _resize_video_to_target(input_file, target_size_mb, output_file, tolerance, iterations, quality)
-        tui.writeln('-' * 64, type_=MessageName.RESULTS, severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Status: {'Success' if results['success'] else 'Partial'}', type_=MessageName.RESULTS, severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Output: {results['file_path']}', type_=MessageName.RESULTS, severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Target Size: {_format_bytes(results['target_size'])}', type_=MessageName.RESULTS, severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Final Size: {_format_bytes(results['file_size'])}', type_=MessageName.RESULTS, severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Iterations: {results['iteration']}/{iterations}', type_=MessageName.RESULTS, severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Final Bitrate: {results['bitrate']:.0f}', type_=MessageName.RESULTS, severity=MessageSeverity.SUCCESS)
+        tui.writeln('-' * 64, severity=MessageSeverity.SUCCESS)
+        tui.writeln(f'Status: {'Success' if results['success'] else 'Partial'}', severity=MessageSeverity.SUCCESS)
+        tui.writeln(f'Output: {results['file_path']}', severity=MessageSeverity.SUCCESS)
+        tui.writeln(f'Target Size: {_format_bytes(results['target_size'])}', severity=MessageSeverity.SUCCESS)
+        tui.writeln(f'Final Size: {_format_bytes(results['file_size'])}', severity=MessageSeverity.SUCCESS)
+        tui.writeln(f'Iterations: {results['iteration']}/{iterations}', severity=MessageSeverity.SUCCESS)
+        tui.writeln(f'Final Bitrate: {results['bitrate']:.0f}', severity=MessageSeverity.SUCCESS)
         return 0
+    except MissingBinaryException as e:
+        tui.writeln(e, severity=MessageSeverity.ERROR)
+        return 1
     except Exception as e:
-        tui.writeln(e, type_=MessageName.GENERIC_ERROR, severity=MessageSeverity.ERROR)
+        tui.writeln(e, severity=MessageSeverity.ERROR)
         return 1
 
 if __name__ == '__main__':

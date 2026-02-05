@@ -2,7 +2,7 @@ from enum import IntEnum
 from typing import Union, TextIO
 
 EOL = '\n'
-Input = Union[str, int, Exception]
+Input = Union[str, int, BaseException]
 CSI = '\x1b['
 
 def esc(code: str) -> str:
@@ -42,19 +42,7 @@ class MessageSeverity(IntEnum):
     ERROR = 2
     SUCCESS = 3
 
-class MessageName(IntEnum):
-    PADDING = 0x0
-    ARGUMENT_ERROR = 0x1
-    INPUT_FILE_TOO_SMALL = 0x2
-    LOW_BITRATE_WARNING = 0x3
-    PROGRESS = 0x4
-    ITERATION = 0x5
-    ITERATION_RESULT = 0x6
-    VENDOR_BINARY_NOT_FOUND = 0x7
-    GENERIC_ERROR = 0x50
-    RESULTS = 0x99
-
-PREFIX = 'SQ'
+PREFIX = 'SQUASH'
 
 class Tui:
     def __init__(self, stdout_: TextIO, stderr_: TextIO):
@@ -77,10 +65,9 @@ class Tui:
         self,
         message: Input,
         *,
-        type_: MessageName = MessageName.PADDING,
         severity: MessageSeverity = MessageSeverity.INFO,
     ):
-        output = self.format(message, type_, severity) + EOL
+        output = self.format(message, severity) + EOL
         stream = (
             self.stderr
             if severity is MessageSeverity.ERROR
@@ -93,10 +80,9 @@ class Tui:
         self,
         message: Input,
         *,
-        type_: MessageName = MessageName.PADDING,
         severity: MessageSeverity = MessageSeverity.INFO,
     ):
-        output = self.format(message, type_, severity)
+        output = self.format(message, severity)
         return self.stdout.write(f'\r{output}{erase_end_line()}')
 
     def erase_line(self):
@@ -147,20 +133,8 @@ class Tui:
     def format(
         self,
         message: Input,
-        type_: MessageName,
         severity: MessageSeverity,
     ) -> str:
-        prefix = self.make_prefix(type_)
+        prefix = self.dim(f'{PREFIX}')
         arrow = self.arrows[severity]
         return f'{arrow} {prefix}: {self.reset(message)}'
-
-    def make_prefix(self, type_: MessageName) -> str:
-        stringified = self.stringify_message_name(type_)
-
-        if type_ is MessageName.PADDING:
-            return self.dim(stringified)
-
-        return stringified
-
-    def stringify_message_name(self, name: MessageName) -> str:
-        return f'{PREFIX}{int(name):04d}'
