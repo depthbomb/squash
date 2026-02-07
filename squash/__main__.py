@@ -1,16 +1,22 @@
 from json import loads
 from pathlib import Path
-from time import monotonic_ns
 from os import environ, pathsep
 from tempfile import gettempdir
 from argparse import ArgumentParser
 from sys import exit, stdout, stderr
-from squash.lib.http import HTTPClient
-from squash.lib.tui import Tui, MessageSeverity
+from time import perf_counter, monotonic_ns
 from subprocess import run, PIPE, Popen, DEVNULL
-from squash.lib.host import is_in_windows_terminal
 from typing import cast, Literal, Optional, TypedDict
-from squash import APP_NAME, APP_VERSION_STRING, BINARY_PATH, SEVENZIP_PATH, APP_DESCRIPTION
+
+from squash.lib.http import HTTPClient
+from squash.lib.host import is_in_windows_terminal
+from squash.lib.tui import EOL, Tui, MessageSeverity
+from squash import APP_NAME, BINARY_PATH, SEVENZIP_PATH, APP_DESCRIPTION, APP_VERSION_STRING
+
+BYTES_PER_MEGABYTE = 1024 * 1024
+MIN_VIDEO_BITRATE = 100
+AUDIO_BITRATE = 128
+CONTAINER_OVERHEAD = 0.97
 
 class EncodeResults(TypedDict):
     success: bool
@@ -19,38 +25,43 @@ class EncodeResults(TypedDict):
     target_size: int
     iteration: int
     bitrate: float
+    elapsed_seconds: float
 
 tui = Tui(stdout, stderr)
 
-def _get_video_info(path: Path) -> tuple[float, int]:
+def _safe_unlink(path: Path) -> None:
+    path.unlink(missing_ok=True)
+
+def _get_video_info(path: Path) -> float:
     ffprobe_path = _get_binary_path('ffprobe')
     proc = Popen(
-            [ffprobe_path, '-v', 'error', '-show_entries', 'format=duration,bit_rate', '-of', 'json', path],
-            stdout=PIPE,
-            text=True,
+        [ffprobe_path, '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', path],
+        stdout=PIPE,
+        text=True,
     )
 
-    out, err = proc.communicate()
+    out, _ = proc.communicate()
     data = loads(out)
 
-    return float(data['format']['duration']), int(data['format']['bit_rate'])
+    return float(data['format']['duration'])
 
 def _get_file_size(path: Path) -> int:
     return path.stat().st_size
 
-def _format_bytes(size: int, precision = 2) -> str:
+def _format_bytes(size: int, precision: int = 2) -> str:
     if size < 0:
         raise ValueError('size must be non-negative')
 
-    units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
-    i = 0
-    while size >= 1024 and i < len(units) - 1:
+    units = ('B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB')
+    unit_index = 0
+    while size >= 1024 and unit_index < len(units) - 1:
         size /= 1024
-        i += 1
-    if i == 0:
-        return f'{int(size)}{units[i]}'
-    else:
-        return f'{size:.{precision}f}{units[i]}'
+        unit_index += 1
+
+    if unit_index == 0:
+        return f'{int(size)}{units[unit_index]}'
+
+    return f'{size:.{precision}f}{units[unit_index]}'
 
 def _get_encode_settings(quality: int) -> list[str]:
     base_args = [
@@ -73,7 +84,75 @@ def _get_encode_settings(quality: int) -> list[str]:
 
     return base_args
 
-def _encode_video(path: Path, output: Path, video_bitrate: float, audio_bitrate: int, quality: int) -> None:
+def _format_duration(total_seconds: float) -> str:
+    if total_seconds < 0:
+        total_seconds = 0
+
+    total_seconds = int(total_seconds)
+    hours, rem = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+
+    if hours:
+        return f'{hours}h {minutes:02d}m {seconds:02d}s'
+    if minutes:
+        return f'{minutes}m {seconds:02d}s'
+    return f'{seconds}s'
+
+def _parse_speed_multiplier(speed: Optional[str]) -> Optional[float]:
+    if not speed:
+        return None
+
+    if speed.endswith('x'):
+        speed = speed[:-1]
+
+    try:
+        return float(speed)
+    except ValueError:
+        return None
+
+def _calculate_target_bitrate(duration: float, target_size_bytes: int, audio_bitrate: int) -> float:
+    total_bitrate = (target_size_bytes * 8) / duration / 1_000
+    return (total_bitrate - audio_bitrate) * CONTAINER_OVERHEAD
+
+def _build_progress_status(progress: dict[str, str], duration: float) -> str:
+    out_time_ms = progress.get('out_time_ms')
+    fps = progress.get('fps')
+    bitrate = progress.get('bitrate')
+    speed = progress.get('speed')
+    percent = None
+
+    if out_time_ms and duration > 0:
+        try:
+            out_seconds = int(out_time_ms) / 1_000_000
+            percent = min(100.0, (out_seconds / duration) * 100.0)
+        except ValueError:
+            percent = None
+
+    eta = None
+    speed_multiplier = _parse_speed_multiplier(speed)
+    if speed_multiplier and out_time_ms:
+        try:
+            out_seconds = int(out_time_ms) / 1_000_000
+            remaining = max(0.0, duration - out_seconds)
+            eta = remaining / speed_multiplier if speed_multiplier > 0 else None
+        except ValueError:
+            eta = None
+
+    status_parts = []
+    if percent is not None:
+        status_parts.append(f'{percent:5.1f}%')
+    if speed:
+        status_parts.append(f'speed {speed}')
+    if fps:
+        status_parts.append(f'fps {fps}')
+    if bitrate:
+        status_parts.append(f'br {bitrate}')
+    if eta is not None:
+        status_parts.append(f'eta ~{_format_duration(eta)}')
+
+    return ' | '.join(status_parts)
+
+def _encode_video(path: Path, output: Path, video_bitrate: float, audio_bitrate: int, quality: int, duration: float) -> None:
     ffmpeg_path = _get_binary_path('ffmpeg')
 
     with Popen([
@@ -88,6 +167,7 @@ def _encode_video(path: Path, output: Path, video_bitrate: float, audio_bitrate:
         str(output)
     ], stdout=PIPE, stderr=DEVNULL, text=True, bufsize=1) as proc:
         progress: dict[str, str] = {}
+        wrote_progress = False
         for line in proc.stdout:
             line = line.strip()
 
@@ -104,19 +184,48 @@ def _encode_video(path: Path, output: Path, video_bitrate: float, audio_bitrate:
             progress[key] = value
 
             if key == 'progress' and value == 'continue':
-                tui.writeln('Encoding... (speed: %s, FPS: %s, bitrate: %s)' % (
-                        tui.dim(progress.get('speed')),
-                        tui.dim(progress.get('fps')),
-                        tui.dim(progress.get('bitrate')),
-                    )
-                )
+                status = _build_progress_status(progress, duration)
+                status_text = f'Encoding... {tui.dim(status)}' if status else 'Encoding...'
+                tui.write(status_text)
+                wrote_progress = True
 
         proc.wait()
 
-def _resize_video_to_target(input_file: Path, target_size_mb: int, output_file: Path, tolerance: float, iterations: int, quality: int) -> EncodeResults:
+        if wrote_progress:
+            tui.stdout.write(EOL)
+
+def _build_results(
+    *,
+    success: bool,
+    file_path: Path,
+    file_size: int,
+    target_size: int,
+    iteration: int,
+    bitrate: float,
+    total_start: float,
+) -> EncodeResults:
+    return {
+        'success': success,
+        'file_path': file_path,
+        'file_size': file_size,
+        'target_size': target_size,
+        'iteration': iteration,
+        'bitrate': bitrate,
+        'elapsed_seconds': perf_counter() - total_start,
+    }
+
+def _resize_video_to_target(
+    input_file: Path,
+    target_size_mb: int,
+    output_file: Path,
+    tolerance: float,
+    iterations: int,
+    quality: int,
+) -> EncodeResults:
+    total_start = perf_counter()
     tui.writeln(f'Analyzing {tui.bold(str(input_file))}...')
 
-    target_size_bytes = target_size_mb * 1024 * 1024
+    target_size_bytes = target_size_mb * BYTES_PER_MEGABYTE
     tolerance_bytes = target_size_bytes * (tolerance / 100)
 
     current_video_size = _get_file_size(input_file)
@@ -125,62 +234,57 @@ def _resize_video_to_target(input_file: Path, target_size_mb: int, output_file: 
 
     if current_video_size <= target_size_bytes:
         tui.writeln('Video is already at or under target size. No encoding needed.', severity=MessageSeverity.SUCCESS)
-        return {
-            'success': True,
-            'file_path': input_file,
-            'file_size': current_video_size,
-            'target_size': target_size_bytes,
-            'iteration': 0,
-            'bitrate': 0,
-        }
+        return _build_results(
+            success=True,
+            file_path=input_file,
+            file_size=current_video_size,
+            target_size=target_size_bytes,
+            iteration=0,
+            bitrate=0,
+            total_start=total_start,
+        )
 
-    video_duration, video_bitrate = _get_video_info(input_file)
-    audio_bitrate = 128  # k
-
-    # calculate initial target bitrate
-    # formula: (target_bytes * 8) / duration = total_bitrate
-    # subtract audio bitrate and add ~3% overhead for container
-    target_bitrate = (target_size_bytes * 8) / video_duration / 1_000 - audio_bitrate
-    target_bitrate *= 0.97  # account for container overhead
-
-    min_bitrate = 100
+    video_duration = _get_video_info(input_file)
+    target_bitrate = _calculate_target_bitrate(video_duration, target_size_bytes, AUDIO_BITRATE)
+    min_bitrate = MIN_VIDEO_BITRATE
     max_bitrate = target_bitrate * 2
     current_bitrate = target_bitrate
 
     iteration = 0
 
     temp_output = Path(gettempdir(), f'squash-temp-{monotonic_ns()}.mp4')
-
     try:
         while iteration < iterations:
             iteration += 1
 
+            iteration_start = perf_counter()
             tui.writeln(f'Iteration {iteration} of {iterations}: encoding at {current_bitrate:.0f}kbps with a {tolerance}% tolerance...')
 
-            _encode_video(input_file, temp_output, current_bitrate, audio_bitrate, quality)
+            _encode_video(input_file, temp_output, current_bitrate, AUDIO_BITRATE, quality, video_duration)
 
             new_file_size = _get_file_size(temp_output)
+            iteration_seconds = perf_counter() - iteration_start
             size_difference = new_file_size - target_size_bytes
             percent_difference = size_difference / target_size_bytes * 100
             is_positive_difference = percent_difference < 0
             styled_percent_difference = tui.color_success(f'{percent_difference:.2f}%') if is_positive_difference else tui.color_error(f'+{percent_difference:.2f}%')
 
-            tui.writeln(f'Result: {tui.bold(_format_bytes(new_file_size))} ({styled_percent_difference})')
+            tui.writeln(f'Result: {tui.bold(_format_bytes(new_file_size))} ({styled_percent_difference}) in {_format_duration(iteration_seconds)}')
 
             if new_file_size < target_size_bytes:
                 gap_to_target = target_size_bytes - new_file_size
                 if gap_to_target < tolerance_bytes:
                     tui.writeln(f'Target achieved! Moving file to {output_file.name}')
                     temp_output.replace(output_file)
-                    temp_output.unlink(missing_ok=True)
-                    return {
-                        'success': True,
-                        'file_path': output_file,
-                        'file_size': new_file_size,
-                        'target_size': target_size_bytes,
-                        'iteration': iteration,
-                        'bitrate': current_bitrate,
-                    }
+                    return _build_results(
+                        success=True,
+                        file_path=output_file,
+                        file_size=new_file_size,
+                        target_size=target_size_bytes,
+                        iteration=iteration,
+                        bitrate=current_bitrate,
+                        total_start=total_start,
+                    )
                 else:
                     tui.writeln(f'Too far below target ({tui.bold(_format_bytes(gap_to_target))} gap), increasing bitrate for next iteration')
                     min_bitrate = current_bitrate
@@ -189,30 +293,29 @@ def _resize_video_to_target(input_file: Path, target_size_mb: int, output_file: 
                 max_bitrate = current_bitrate
 
             current_bitrate = (min_bitrate + max_bitrate) / 2
-            if current_bitrate < 100:
-                tui.writeln(f'Bitrate too low. Cannot achieve target size without severe quality loss.')
+            if current_bitrate < MIN_VIDEO_BITRATE:
+                tui.writeln('Bitrate too low. Cannot achieve target size without severe quality loss.')
                 break
 
         final_size = _get_file_size(temp_output)
         if final_size <= target_size_bytes:
             tui.writeln(f'Max iterations reached, using best result under target.')
             temp_output.replace(output_file)
-            temp_output.unlink(missing_ok=True)
-
-            return {
-                'success': False,
-                'file_path': output_file,
-                'file_size': final_size,
-                'target_size': target_size_bytes,
-                'iteration': iteration,
-                'bitrate': current_bitrate,
-            }
+            return _build_results(
+                success=False,
+                file_path=output_file,
+                file_size=final_size,
+                target_size=target_size_bytes,
+                iteration=iteration,
+                bitrate=current_bitrate,
+                total_start=total_start,
+            )
         else:
-            temp_output.unlink(missing_ok=True)
             raise Exception(f'Could not achieve target size after {iterations} iterations. Final result was {_format_bytes(final_size)} (over target).')
-    except Exception as e:
-        temp_output.unlink(missing_ok=True)
-        raise e
+    except KeyboardInterrupt:
+        raise
+    finally:
+        _safe_unlink(temp_output)
 
 def _find_in_path(bin_name: str) -> Optional[Path]:
     for directory in environ.get('PATH', '').split(pathsep):
@@ -238,7 +341,7 @@ def _has_required_binaries() -> bool:
 def main() -> int:
     #region Windows Terminal check
     if not is_in_windows_terminal():
-        print(tui.boxed('It is highly recommended you use a command line shell like Windows Terminal for the best experience: https://apps.microsoft.com/detail/9n0dx20hk701'))
+        tui.stdout.write(tui.boxed('It is highly recommended you use a command line shell like Windows Terminal for the best experience: https://apps.microsoft.com/detail/9n0dx20hk701') + EOL)
     #endregion
 
     #region FFmpeg/FFprobe check
@@ -310,14 +413,26 @@ def main() -> int:
 
     try:
         results = _resize_video_to_target(input_file, target_size_mb, output_file, tolerance, iterations, quality)
-        tui.writeln('-' * 64, severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Status: {'Success' if results['success'] else 'Partial'}', severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Output: {results['file_path']}', severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Target Size: {_format_bytes(results['target_size'])}', severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Final Size: {_format_bytes(results['file_size'])}', severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Iterations: {results['iteration']}/{iterations}', severity=MessageSeverity.SUCCESS)
-        tui.writeln(f'Final Bitrate: {results['bitrate']:.0f}', severity=MessageSeverity.SUCCESS)
+        status = 'Success' if results['success'] else 'Partial'
+        actual_size = _format_bytes(results['file_size'])
+        target_size = _format_bytes(results['target_size'])
+        delta = results['file_size'] - results['target_size']
+        delta_sign = '+' if delta > 0 else ''
+        delta_text = f'{delta_sign}{_format_bytes(abs(delta))}'
+        tui.writeln(
+            (
+                f'{status}: wrote {results['file_path']}; '
+                f'final size {actual_size} (target {target_size}, delta {delta_text}); '
+                f'iterations {results['iteration']}/{iterations}; '
+                f'final bitrate {results['bitrate']:.0f} kbps; '
+                f'total time {_format_duration(results['elapsed_seconds'])}.'
+            ),
+            severity=MessageSeverity.SUCCESS,
+        )
         return 0
+    except KeyboardInterrupt:
+        tui.writeln('Encoding cancelled.', severity=MessageSeverity.WARNING)
+        return 130
     except Exception as e:
         tui.writeln(e, severity=MessageSeverity.ERROR)
         return 1
