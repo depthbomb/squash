@@ -5,6 +5,3 @@ class BaseAssertableException(BaseException):
     def raise_if(cls, condition: bool, message: str) -> None | Never:
         if condition:
             raise cls(message)
-
-class MissingBinaryException(BaseAssertableException):
-    pass

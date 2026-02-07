@@ -9,7 +9,6 @@ from squash.lib.http import HttpClient
 from squash.lib.tui import Tui, MessageSeverity
 from subprocess import run, PIPE, Popen, DEVNULL
 from squash.lib.host import is_in_windows_terminal
-from squash.lib.errors import MissingBinaryException
 from typing import cast, Literal, Optional, TypedDict
 from squash import APP_NAME, APP_VERSION_STRING, BINARY_PATH, SEVENZIP_PATH, APP_DESCRIPTION
 
@@ -313,9 +312,6 @@ def main() -> int:
         tui.writeln(f'Iterations: {results['iteration']}/{iterations}', severity=MessageSeverity.SUCCESS)
         tui.writeln(f'Final Bitrate: {results['bitrate']:.0f}', severity=MessageSeverity.SUCCESS)
         return 0
-    except MissingBinaryException as e:
-        tui.writeln(e, severity=MessageSeverity.ERROR)
-        return 1
     except Exception as e:
         tui.writeln(e, severity=MessageSeverity.ERROR)
         return 1
