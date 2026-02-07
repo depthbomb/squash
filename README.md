@@ -11,11 +11,11 @@ squash ./my-video.mp4 10
 ```
 
 > [!IMPORTANT]
-> `squash` isn't magic. It can't encode a 150MB video down to 10MB without a severe loss in quality; it is just not possible. You should aim for reasonable targets based on the original video file size.
+> Squash isn't magic. It can't encode a 150MB video down to 10MB without a severe loss in quality; it is just not possible. You should aim for reasonable targets based on the original video file size.
 
 ## Requirements
 
-`squash` requires [FFmpeg and FFprobe](https://ffmpeg.org/) either in your system PATH or alongside the application's executable.
+Squash requires [FFmpeg and FFprobe](https://ffmpeg.org/) either in your system PATH or alongside the application's executable. You will be prompted to allow Squash to download them for you.
 
 ## Installation
 
