@@ -2,7 +2,7 @@
 
 ## 1.2.0
 
-- Updating the UX of encoding progress
+- Updated the UX of encoding progress
   - Now displays the encoding percentage
   - Now displays an approximate ETA until encoding is finished
   - Now updates a single line instead of printing one line per progress step
