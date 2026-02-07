@@ -1,4 +1,4 @@
-certifi
+certifi==2026.1.4
 
-nuitka==2.8.10
+nuitka==4.0.0
 invoke==2.2.1
