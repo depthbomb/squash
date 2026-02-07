@@ -1,11 +1,11 @@
 from json import loads
-from shutil import which
 from pathlib import Path
 from time import monotonic_ns
+from os import environ, pathsep
 from tempfile import gettempdir
 from argparse import ArgumentParser
 from sys import exit, stdout, stderr
-from squash.lib.http import HttpClient
+from squash.lib.http import HTTPClient
 from squash.lib.tui import Tui, MessageSeverity
 from subprocess import run, PIPE, Popen, DEVNULL
 from squash.lib.host import is_in_windows_terminal
@@ -214,14 +214,20 @@ def _resize_video_to_target(input_file: Path, target_size_mb: int, output_file: 
         temp_output.unlink(missing_ok=True)
         raise e
 
+def _find_in_path(bin_name: str) -> Optional[Path]:
+    for directory in environ.get('PATH', '').split(pathsep):
+        candidate = Path(directory) / f'{bin_name}.exe'
+        if candidate.is_file():
+            return candidate
+
+    return None
+
 def _get_binary_path(name: Literal['ffmpeg', 'ffprobe']) -> Optional[Path]:
     binary_path = (Path(BINARY_PATH).parent / name).with_suffix('.exe')
     if binary_path.exists():
         return binary_path
 
-    which_path = which(name)
-
-    return Path(which_path) if which_path is not None else None
+    return _find_in_path(name)
 
 def _has_required_binaries() -> bool:
     has_ffmpeg = _get_binary_path('ffmpeg')
@@ -251,7 +257,7 @@ def main() -> int:
 
         download_path = Path(gettempdir()) / 'ffmpeg.7z'
 
-        http = HttpClient()
+        http = HTTPClient()
         http.download('https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z', download_path, on_progress=on_progress)
 
         tui.writeln('Extracting...')

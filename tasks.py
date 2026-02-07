@@ -15,14 +15,13 @@ from squash import (
     )
 
 @task()
-def build(c: Context):
+def build(c: Context, onefile = False):
     cmd = ' '.join([
         'nuitka',
         'squash',
         f'--output-dir=build --output-filename={APP_NAME}',
-        '--standalone',
+        '--standalone' if not onefile else '--onefile --onefile-no-compression',
         '--enable-plugin=upx',
-        '--onefile-no-compression',
         '--windows-icon-from-ico=resources/icon.ico',
         f'--company-name="{APP_ORG}" --product-name="{APP_DISPLAY_NAME}" --product-version={APP_VERSION_STRING} --file-description="{APP_DESCRIPTION}" --copyright="Copyright (c) 2026 {APP_ORG}"',
     ])

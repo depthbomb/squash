@@ -6,7 +6,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from ssl import Purpose, create_default_context
 
-class HttpClient:
+class HTTPClient:
     def __init__(self, timeout: float = 30.0):
         self.timeout = timeout
         self.ssl_context = create_default_context(Purpose.SERVER_AUTH, cafile=where())
