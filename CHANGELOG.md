@@ -1,3 +1,10 @@
+# 02/09/2026
+
+## 1.3.0
+
+- Implemented a smarter method of selecting bitrates for encoding iterations that can reduce the overall time it takes to compress a video
+- Other optimizations and improvements
+
 # 02/07/2026
 
 ## 1.2.0
