@@ -7,7 +7,7 @@ A tool to compress a video to a target size while maintaining as much quality as
 
 ## Requirements
 
-Squash requires [FFmpeg and FFprobe](https://ffmpeg.org/) either in your system PATH or alongside the application's executable. You will be prompted to allow Squash to download them for you.
+Squash requires [FFmpeg and FFprobe](https://ffmpeg.org/) either in your system PATH or alongside the application's executable.
 
 ## Installation
 
