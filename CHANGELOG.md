@@ -1,3 +1,13 @@
+# 02/15/2026
+
+## 2.0.0
+
+- Rewritten to be a desktop application
+  - Input file, output file, and other options are now easily configured within the GUI
+  - You can also drag a video file into the window to select it as the input file
+  - Automatic downloading of FFmpeg/FFprobe is not implemented yet, instead they are included in the setup
+- The last release of the CLI version, 1.3.0, will remain available to download but will not receive any further releases
+
 # 02/09/2026
 
 ## 1.3.0

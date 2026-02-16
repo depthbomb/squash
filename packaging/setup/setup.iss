@@ -1,5 +1,3 @@
-#include "environment.iss"
-
 [Setup]
 AppId={#AppId}
 AppName={#NameLong}
@@ -19,41 +17,34 @@ PrivilegesRequired=lowest
 AllowNoIcons=yes
 LicenseFile=..\..\LICENSE
 OutputDir=..\..\build
-OutputBaseFilename=squash-setup
-SetupIconFile=..\icon.ico
+OutputBaseFilename={#ExeBaseName}-setup
+SetupIconFile=..\icons\icon.ico
 Compression=lzma2/ultra64
 LZMAUseSeparateProcess=yes
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 MinVersion=10.0
-WizardStyle=modern dynamic
+WizardStyle=modern dark
 ShowTasksTreeLines=yes
 UninstallDisplayIcon={app}\{#ExeName}
 UninstallDisplayName={#NameLong}
-ChangesEnvironment=true
-
-[Code]
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-    if (CurStep = ssPostInstall) and IsTaskSelected('envPath')
-    then EnvAddPath(ExpandConstant('{app}'));
-end;
-
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-begin
-    if CurUninstallStep = usPostUninstall
-    then EnvRemovePath(ExpandConstant('{app}'));
-end;
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: envPath; Description: "Add to system PATH"
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+
+[Icons]
+Name: "{autoprograms}\{#Company}\{#NameLong}"; Filename: "{app}\{#ExeBaseName}.exe"; Comment: "Squash Start Menu shortcut"
+Name: "{autodesktop}\{#NameLong}"; Filename: "{app}\{#ExeBaseName}.exe"; Tasks: desktopicon; Comment: "Squash Desktop shortcut"
+
+[Run]
+Filename: "{app}\{#ExeBaseName}.exe"; Description: "{cm:LaunchProgram,{#StringChange(NameLong, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Files]
-Source: "..\..\build\squash.dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
-Source: "..\vendor\*"; DestDir: "{app}\vendor"; Flags: ignoreversion recursesubdirs
+Source: "..\..\build\jpackage\output\squash\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+Source: "..\vendor\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [UninstallDelete]
