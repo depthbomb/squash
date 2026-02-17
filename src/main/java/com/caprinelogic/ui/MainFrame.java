@@ -1,5 +1,6 @@
 package com.caprinelogic.ui;
 
+import com.caprinelogic.BuildInfo;
 import com.caprinelogic.service.BinaryService;
 import com.caprinelogic.service.EncodeService;
 import org.springframework.stereotype.Component;
@@ -21,7 +22,7 @@ import java.util.concurrent.CancellationException;
 
 @Component
 public final class MainFrame extends JFrame {
-    private static final String INITIAL_TITLE = "Squash";
+    private static final String INITIAL_TITLE = BuildInfo.APP_NAME;
     private static final String INITIAL_BUTTON_TEXT = "Squash it!";
     private static final Set<String> SUPPORTED_VIDEO_EXTENSIONS = Set.of(
         "mp4", "mov", "mkv", "avi", "wmv", "webm"
@@ -43,6 +44,7 @@ public final class MainFrame extends JFrame {
     private JComboBox<String> qualityPresetCombo;
     //#endregion
 
+    private JDialog infoDialog;
     private volatile boolean binariesReady;
     private volatile boolean closeRequested;
     private EncodingWorker encodingWorker;
@@ -88,6 +90,13 @@ public final class MainFrame extends JFrame {
         });
         qualityPresetCombo.setSelectedIndex(1);
 
+        inputFileButton = new JButton("Browse...");
+        inputFileButton.addActionListener(_ -> browseForInputFile());
+
+        outputFileButton = new JButton("Browse...");
+        outputFileButton.setEnabled(false);
+        outputFileButton.addActionListener(_ -> browseForOutputFile());
+
         actionButton = new JButton(INITIAL_BUTTON_TEXT);
         actionButton.setEnabled(false);
         actionButton.addActionListener(_ -> {
@@ -99,94 +108,12 @@ public final class MainFrame extends JFrame {
         });
 
         var filePanel = new JPanel(new GridBagLayout());
-        var c = new GridBagConstraints();
-        c.insets = new Insets(0, 0, 8, 8);
-        c.gridy = 0;
-        c.gridx = 0;
-        c.anchor = GridBagConstraints.WEST;
-        filePanel.add(new JLabel("Input file"), c);
-
-        c.gridx = 1;
-        c.weightx = 1.0;
-        c.fill = GridBagConstraints.HORIZONTAL;
-        filePanel.add(inputFileField, c);
-
-        c.gridx = 2;
-        c.weightx = 0;
-        c.fill = GridBagConstraints.NONE;
-        c.insets = new Insets(0, 0, 8, 0);
-        inputFileButton = new JButton("Browse...");
-        inputFileButton.addActionListener(_ -> browseForInputFile());
-        filePanel.add(inputFileButton, c);
-
-        c.gridy = 1;
-        c.gridx = 0;
-        c.insets = new Insets(0, 0, 8, 8);
-        c.anchor = GridBagConstraints.WEST;
-        filePanel.add(new JLabel("Output file"), c);
-
-        c.gridx = 1;
-        c.weightx = 1.0;
-        c.fill = GridBagConstraints.HORIZONTAL;
-        filePanel.add(outputFileField, c);
-
-        c.gridx = 2;
-        c.weightx = 0;
-        c.fill = GridBagConstraints.NONE;
-        c.insets = new Insets(0, 0, 8, 0);
-        outputFileButton = new JButton("Browse...");
-        outputFileButton.setEnabled(false);
-        outputFileButton.addActionListener(_ -> browseForOutputFile());
-        filePanel.add(outputFileButton, c);
-
-        c.gridy = 2;
-        c.gridx = 0;
-        c.insets = new Insets(0, 0, 8, 8);
-        c.weightx = 0;
-        c.fill = GridBagConstraints.NONE;
-        c.anchor = GridBagConstraints.WEST;
-        filePanel.add(new JLabel("Target size"), c);
-
-        c.gridx = 1;
-        c.weightx = 1.0;
-        c.fill = GridBagConstraints.HORIZONTAL;
-        filePanel.add(targetSizeSpinner, c);
-
-        c.gridy = 3;
-        c.gridx = 0;
-        c.insets = new Insets(0, 0, 8, 8);
-        c.weightx = 0;
-        c.fill = GridBagConstraints.NONE;
-        filePanel.add(new JLabel("Tolerance"), c);
-
-        c.gridx = 1;
-        c.weightx = 1.0;
-        c.fill = GridBagConstraints.HORIZONTAL;
-        filePanel.add(toleranceSpinner, c);
-
-        c.gridy = 4;
-        c.gridx = 0;
-        c.insets = new Insets(0, 0, 8, 8);
-        c.weightx = 0;
-        c.fill = GridBagConstraints.NONE;
-        filePanel.add(new JLabel("Max iterations"), c);
-
-        c.gridx = 1;
-        c.weightx = 1.0;
-        c.fill = GridBagConstraints.HORIZONTAL;
-        filePanel.add(maxIterationsSpinner, c);
-
-        c.gridy = 5;
-        c.gridx = 0;
-        c.insets = new Insets(0, 0, 0, 8);
-        c.weightx = 0;
-        c.fill = GridBagConstraints.NONE;
-        filePanel.add(new JLabel("Quality preset"), c);
-
-        c.gridx = 1;
-        c.weightx = 1.0;
-        c.fill = GridBagConstraints.HORIZONTAL;
-        filePanel.add(qualityPresetCombo, c);
+        addRowWithTrailingControl(filePanel, 0, "Input file", inputFileField, inputFileButton, false);
+        addRowWithTrailingControl(filePanel, 1, "Output file", outputFileField, outputFileButton, false);
+        addRow(filePanel, 2, "Target size", targetSizeSpinner, false);
+        addRow(filePanel, 3, "Tolerance", toleranceSpinner, false);
+        addRow(filePanel, 4, "Max iterations", maxIterationsSpinner, false);
+        addRow(filePanel, 5, "Quality preset", qualityPresetCombo, true);
 
         var centerPanel = new JPanel(new BorderLayout(0, 8));
         centerPanel.add(filePanel, BorderLayout.NORTH);
@@ -196,12 +123,14 @@ public final class MainFrame extends JFrame {
         root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         root.add(centerPanel, BorderLayout.CENTER);
         root.add(actionButton, BorderLayout.SOUTH);
+
         installFileDropSupport(root);
 
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         setResizable(false);
         setTitle(INITIAL_TITLE);
         setWindowIcon();
+        setJMenuBar(createMenuBar());
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent event) {
@@ -220,6 +149,70 @@ public final class MainFrame extends JFrame {
         setSize(600, getSize().height);
         setLocationRelativeTo(null);
         setVisible(true);
+    }
+
+    private JMenuBar createMenuBar() {
+        var menuBar = new JMenuBar();
+        var aboutMenu = new JMenu("About");
+        var infoItem = new JMenuItem("Info");
+        infoItem.addActionListener(_ -> showInfoDialog());
+        aboutMenu.add(infoItem);
+        menuBar.add(aboutMenu);
+
+        return menuBar;
+    }
+
+    private void showInfoDialog() {
+        if (infoDialog == null) {
+            infoDialog = new AboutDialog(this);
+        }
+
+        infoDialog.setLocationRelativeTo(this);
+        infoDialog.setVisible(true);
+    }
+
+    private static void addRow(
+        JPanel panel,
+        int row,
+        String labelText,
+        JComponent field,
+        boolean isLastRow
+    ) {
+        int bottomInset = isLastRow ? 0 : 8;
+        var insets = new Insets(0, 0, bottomInset, 8);
+        panel.add(new JLabel(labelText), createConstraints(0, row, 0, GridBagConstraints.NONE, insets));
+        panel.add(field, createConstraints(1, row, 1.0, GridBagConstraints.HORIZONTAL, insets));
+    }
+
+    private static void addRowWithTrailingControl(
+        JPanel panel,
+        int row,
+        String labelText,
+        JComponent field,
+        JComponent trailingControl,
+        boolean isLastRow
+    ) {
+        int bottomInset = isLastRow ? 0 : 8;
+        addRow(panel, row, labelText, field, isLastRow);
+        var trailingInsets = new Insets(0, 0, bottomInset, 0);
+        panel.add(trailingControl, createConstraints(2, row, 0, GridBagConstraints.NONE, trailingInsets));
+    }
+
+    private static GridBagConstraints createConstraints(
+        int gridX,
+        int gridY,
+        double weightX,
+        int fill,
+        Insets insets
+    ) {
+        var c = new GridBagConstraints();
+        c.gridx = gridX;
+        c.gridy = gridY;
+        c.weightx = weightX;
+        c.fill = fill;
+        c.anchor = GridBagConstraints.WEST;
+        c.insets = insets;
+        return c;
     }
 
     private void browseForInputFile() {
@@ -419,17 +412,40 @@ public final class MainFrame extends JFrame {
         return SUPPORTED_VIDEO_EXTENSIONS.contains(extension);
     }
 
-    private void installFileDropSupport(JComponent target) {
-        target.setTransferHandler(new TransferHandler() {
+    private void installFileDropSupport(java.awt.Component root) {
+        installFileDropSupportRecursively(root);
+    }
+
+    private void installFileDropSupportRecursively(java.awt.Component component) {
+        if (component instanceof JComponent target) {
+            var fallbackTransferHandler = target.getTransferHandler();
+            target.setTransferHandler(createFileDropTransferHandler(fallbackTransferHandler));
+        }
+
+        if (component instanceof Container container) {
+            for (java.awt.Component child : container.getComponents()) {
+                installFileDropSupportRecursively(child);
+            }
+        }
+    }
+
+    private TransferHandler createFileDropTransferHandler(TransferHandler fallbackTransferHandler) {
+        return new TransferHandler() {
             @Override
             public boolean canImport(TransferSupport support) {
-                return support.isDrop() && support.isDataFlavorSupported(DataFlavor.javaFileListFlavor);
+                boolean isFileDrop = support.isDrop() && support.isDataFlavorSupported(DataFlavor.javaFileListFlavor);
+                if (isFileDrop) {
+                    return !isEncodingRunning();
+                }
+
+                return fallbackTransferHandler != null && fallbackTransferHandler.canImport(support);
             }
 
             @Override
             public boolean importData(TransferSupport support) {
-                if (!canImport(support)) {
-                    return false;
+                boolean isFileDrop = support.isDrop() && support.isDataFlavorSupported(DataFlavor.javaFileListFlavor);
+                if (!isFileDrop) {
+                    return fallbackTransferHandler != null && fallbackTransferHandler.importData(support);
                 }
 
                 if (isEncodingRunning()) {
@@ -467,7 +483,7 @@ public final class MainFrame extends JFrame {
                     return false;
                 }
             }
-        });
+        };
     }
 
     private final class EncodingWorker extends SwingWorker<EncodeService.EncodeResult, Void> {

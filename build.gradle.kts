@@ -1,4 +1,5 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
     id("java")
@@ -27,6 +28,20 @@ val mainManifest = mapOf("Main-Class" to appMainClass)
 val jpackageInputDir = layout.buildDirectory.dir("libs")
 val jpackageOutputDir = layout.buildDirectory.dir("jpackage/output")
 val jpackageIconFile = layout.projectDirectory.file("packaging/icons/icon.ico").asFile
+val buildInfoOutputDir = layout.buildDirectory.dir("generated/sources/buildInfo/java")
+
+fun escapeJavaStringLiteral(value: String): String = buildString {
+    value.forEach { ch ->
+        when (ch) {
+            '\\' -> append("\\\\")
+            '"' -> append("\\\"")
+            '\n' -> append("\\n")
+            '\r' -> append("\\r")
+            '\t' -> append("\\t")
+            else -> append(ch)
+        }
+    }
+}
 
 repositories {
     mavenCentral()
@@ -34,6 +49,7 @@ repositories {
 
 dependencies {
     implementation("com.formdev:flatlaf:3.7")
+    implementation("com.formdev:flatlaf-intellij-themes:3.7")
     implementation("org.springframework:spring-context:7.0.4")
 }
 
@@ -51,8 +67,39 @@ application {
     mainClass.set(appMainClass)
 }
 
+val buildInfoTokens = mapOf(
+    "APP_NAME" to escapeJavaStringLiteral(appDisplayName),
+    "APP_VERSION" to escapeJavaStringLiteral(appVersion),
+    "APP_VENDOR" to escapeJavaStringLiteral(appVendor),
+    "APP_REPO_URL" to escapeJavaStringLiteral(appRepoUrl),
+    "APP_RELEASES_URL" to escapeJavaStringLiteral(appReleasesUrl),
+    "APP_ISSUES_URL" to escapeJavaStringLiteral(appIssuesUrl)
+)
+
+val generateBuildInfo = tasks.register<Copy>("generateBuildInfo") {
+    from("src/main/templates") {
+        include("BuildInfo.java.template")
+        rename("BuildInfo.java.template", "BuildInfo.java")
+        filter<ReplaceTokens>("tokens" to buildInfoTokens)
+    }
+    into(buildInfoOutputDir.map { it.dir("com/caprinelogic") })
+    filteringCharset = "UTF-8"
+    inputs.properties(buildInfoTokens)
+}
+
+sourceSets {
+    named("main") {
+        java.srcDir(buildInfoOutputDir)
+    }
+}
+
 tasks.withType<JavaCompile>().configureEach {
+    dependsOn(generateBuildInfo)
     options.encoding = "UTF-8"
+}
+
+tasks.named("compileKotlin") {
+    dependsOn(generateBuildInfo)
 }
 
 tasks.jar {

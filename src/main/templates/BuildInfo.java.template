@@ -1,0 +1,12 @@
+package com.caprinelogic;
+
+public final class BuildInfo {
+    public static final String APP_NAME = "@APP_NAME@";
+    public static final String APP_VERSION = "@APP_VERSION@";
+    public static final String APP_VENDOR = "@APP_VENDOR@";
+    public static final String APP_REPO_URL = "@APP_REPO_URL@";
+    public static final String APP_RELEASES_URL = "@APP_RELEASES_URL@";
+    public static final String APP_ISSUES_URL = "@APP_ISSUES_URL@";
+
+    private BuildInfo() {}
+}

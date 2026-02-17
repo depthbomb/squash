@@ -1,3 +1,11 @@
+# 02/16/2026
+
+## 2.1.0
+
+- Fixed dragging a file onto the app not working if the file was dropped on a component within the frame
+- Adjusted app theme
+- Added app info
+
 # 02/15/2026
 
 ## 2.0.0
