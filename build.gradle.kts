@@ -24,6 +24,13 @@ val appIssuesUrl: String by project
 
 val appMainClass = "com.caprinelogic.Main"
 val mainManifest = mapOf("Main-Class" to appMainClass)
+val defaultJlinkOptions = listOf(
+    "--strip-debug",
+    "--no-header-files",
+    "--no-man-pages",
+    "--compress=zip-9"
+)
+val jpackageModules = providers.gradleProperty("jpackageModules").orNull?.trim()?.takeIf { it.isNotEmpty() }
 
 val jpackageInputDir = layout.buildDirectory.dir("libs")
 val jpackageOutputDir = layout.buildDirectory.dir("jpackage/output")
@@ -131,8 +138,7 @@ tasks.register<Exec>("jpackageAppImage") {
     inputs.file(shadowArchive)
     outputs.dir(jpackageOutputDir)
 
-    executable = "jpackage"
-    args(
+    val jpackageArgs = mutableListOf(
         "--type", "app-image",
         "--name", appName,
         "--input", jpackageInputDir.get().asFile.absolutePath,
@@ -143,8 +149,16 @@ tasks.register<Exec>("jpackageAppImage") {
         "--app-version", appVersion,
         "--description", appDescription,
         "--copyright", appCopyright,
-        "--vendor", appVendor
+        "--vendor", appVendor,
+        "--jlink-options", defaultJlinkOptions.joinToString(" ")
     )
+
+    if (jpackageModules != null) {
+        jpackageArgs.addAll(listOf("--add-modules", jpackageModules))
+    }
+
+    executable = "jpackage"
+    args(jpackageArgs)
 }
 
 tasks.register("jpackageExe") {
