@@ -1,3 +1,10 @@
+# 02/19/2026
+
+## 2.2.0
+
+- Added automatic light/dark theme
+- The app will now offer to automatically download FFmpeg/FFprobe for you if it isn't found
+
 # 02/16/2026
 
 ## 2.1.0

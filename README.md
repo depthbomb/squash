@@ -7,7 +7,7 @@ A tool to compress a video to a target size while maintaining as much quality as
 
 ## Requirements
 
-Squash requires [FFmpeg and FFprobe](https://ffmpeg.org/) either in your system PATH or alongside the application's executable.
+Squash requires [FFmpeg and FFprobe](https://ffmpeg.org/) on your system. If they aren't found, you will have the option to let Squash download them for you.
 
 ## Installation
 
@@ -17,7 +17,7 @@ Squash can be installed via a setup downloaded from the [releases.](https://gith
 
 ### Tolerance
 
-The tolerance option lets you set how close, as a percentage, an encoding has to be under the target size to be considered a successful result. By default it is 2% which means if you are targeting 10MB then 9.98MB will be considered a success.
+The tolerance option lets you set how close, as a percentage, an encoding has to be under the target size to be considered a successful result. By default, it is 2% which means if you are targeting 10MB then 9.98MB will be considered a success.
 
 Setting this to 0 can technically work but may take many more iterations than the default maximum. (see section below)
 

@@ -25,11 +25,12 @@ public final class MainFrame extends JFrame {
     private static final String INITIAL_TITLE = BuildInfo.APP_NAME;
     private static final String INITIAL_BUTTON_TEXT = "Squash it!";
     private static final Set<String> SUPPORTED_VIDEO_EXTENSIONS = Set.of(
-        "mp4", "mov", "mkv", "avi", "wmv", "webm"
+            "mp4", "mov", "mkv", "avi", "wmv", "webm"
     );
 
     private final BinaryService binaryService;
     private final EncodeService encodeService;
+    private final BinaryDownloaderDialog binaryDownloaderDialog;
 
     //#region UI
     private JProgressBar progressBar;
@@ -49,9 +50,14 @@ public final class MainFrame extends JFrame {
     private volatile boolean closeRequested;
     private EncodingWorker encodingWorker;
 
-    public MainFrame(BinaryService binaryService, EncodeService encodeService) {
+    public MainFrame(
+            BinaryService binaryService,
+            EncodeService encodeService,
+            BinaryDownloaderDialog binaryDownloaderDialog
+    ) {
         this.binaryService = binaryService;
         this.encodeService = encodeService;
+        this.binaryDownloaderDialog = binaryDownloaderDialog;
     }
 
     public void start() {
@@ -83,10 +89,10 @@ public final class MainFrame extends JFrame {
         maxIterationsSpinner = new JSpinner(new SpinnerNumberModel(15, 1, null, 1));
 
         qualityPresetCombo = new JComboBox<>(new String[]{
-            "1. Fast, decent quality",
-            "2. Slow, better quality (recommended)",
-            "3. Very slow, better quality",
-            "4. Absurdly slow, better quality"
+                "1. Fast, decent quality",
+                "2. Slow, better quality (recommended)",
+                "3. Very slow, better quality",
+                "4. Absurdly slow, better quality"
         });
         qualityPresetCombo.setSelectedIndex(1);
 
@@ -172,11 +178,11 @@ public final class MainFrame extends JFrame {
     }
 
     private static void addRow(
-        JPanel panel,
-        int row,
-        String labelText,
-        JComponent field,
-        boolean isLastRow
+            JPanel panel,
+            int row,
+            String labelText,
+            JComponent field,
+            boolean isLastRow
     ) {
         int bottomInset = isLastRow ? 0 : 8;
         var insets = new Insets(0, 0, bottomInset, 8);
@@ -185,12 +191,12 @@ public final class MainFrame extends JFrame {
     }
 
     private static void addRowWithTrailingControl(
-        JPanel panel,
-        int row,
-        String labelText,
-        JComponent field,
-        JComponent trailingControl,
-        boolean isLastRow
+            JPanel panel,
+            int row,
+            String labelText,
+            JComponent field,
+            JComponent trailingControl,
+            boolean isLastRow
     ) {
         int bottomInset = isLastRow ? 0 : 8;
         addRow(panel, row, labelText, field, isLastRow);
@@ -199,11 +205,11 @@ public final class MainFrame extends JFrame {
     }
 
     private static GridBagConstraints createConstraints(
-        int gridX,
-        int gridY,
-        double weightX,
-        int fill,
-        Insets insets
+            int gridX,
+            int gridY,
+            double weightX,
+            int fill,
+            Insets insets
     ) {
         var c = new GridBagConstraints();
         c.gridx = gridX;
@@ -220,8 +226,8 @@ public final class MainFrame extends JFrame {
         chooser.setDialogTitle("Select video to squash");
         chooser.setAcceptAllFileFilterUsed(false);
         chooser.setFileFilter(new FileNameExtensionFilter(
-            "Video files (*.mp4, *.mov, *.mkv, *.avi, *.wmv, *.webm)",
-            "mp4", "mov", "mkv", "avi", "wmv", "webm"
+                "Video files (*.mp4, *.mov, *.mkv, *.avi, *.wmv, *.webm)",
+                "mp4", "mov", "mkv", "avi", "wmv", "webm"
         ));
 
         if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -290,12 +296,12 @@ public final class MainFrame extends JFrame {
             var maxIterations = ((Number) maxIterationsSpinner.getValue()).intValue();
             var qualityPreset = qualityPresetCombo.getSelectedIndex() + 1;
             var request = new EncodeService.EncodeRequest(
-                inputPath,
-                outputPath,
-                targetSizeMb,
-                tolerancePercent,
-                maxIterations,
-                qualityPreset
+                    inputPath,
+                    outputPath,
+                    targetSizeMb,
+                    tolerancePercent,
+                    maxIterations,
+                    qualityPreset
             );
 
             encodingWorker = new EncodingWorker(request);
@@ -463,10 +469,10 @@ public final class MainFrame extends JFrame {
                     var droppedPath = files.getFirst().toPath();
                     if (!isSupportedVideoFile(droppedPath)) {
                         JOptionPane.showMessageDialog(
-                            MainFrame.this,
-                            "Dropped item is not a supported video file.",
-                            "Unsupported file",
-                            JOptionPane.WARNING_MESSAGE
+                                MainFrame.this,
+                                "Dropped item is not a supported video file.",
+                                "Unsupported file",
+                                JOptionPane.WARNING_MESSAGE
                         );
                         return false;
                     }
@@ -475,10 +481,10 @@ public final class MainFrame extends JFrame {
                     return true;
                 } catch (Exception exception) {
                     JOptionPane.showMessageDialog(
-                        MainFrame.this,
-                        exception.getMessage(),
-                        "Drop failed",
-                        JOptionPane.ERROR_MESSAGE
+                            MainFrame.this,
+                            exception.getMessage(),
+                            "Drop failed",
+                            JOptionPane.ERROR_MESSAGE
                     );
                     return false;
                 }
@@ -499,15 +505,15 @@ public final class MainFrame extends JFrame {
         @Override
         protected EncodeService.EncodeResult doInBackground() throws Exception {
             return encodeService.resizeVideoToTarget(
-                request,
-                update -> {
-                    if (update.progressPercent() >= 0) {
-                        setProgress(update.progressPercent());
-                    }
+                    request,
+                    update -> {
+                        if (update.progressPercent() >= 0) {
+                            setProgress(update.progressPercent());
+                        }
 
-                    updateFrameTitle(update.titleText(), update.progressPercent() >= 100);
-                },
-                this::isCancelled
+                        updateFrameTitle(update.titleText(), update.progressPercent() >= 100);
+                    },
+                    this::isCancelled
             );
         }
 
@@ -552,18 +558,18 @@ public final class MainFrame extends JFrame {
                 var deltaSign = delta > 0 ? "+" : "";
 
                 var message = String.format(
-                    Locale.US,
-                    "%s: wrote %s\nFinal size %s (target %s, delta %s%s)\nIterations %d/%d at %.0f kbps\nTotal time %s",
-                    outcome,
-                    result.filePath(),
-                    formatBytes(result.fileSizeBytes()),
-                    formatBytes(result.targetSizeBytes()),
-                    deltaSign,
-                    formatBytes(Math.abs(delta)),
-                    result.iteration(),
-                    request.maxIterations(),
-                    result.videoBitrateKbps(),
-                    formatDuration(result.elapsedSeconds())
+                        Locale.US,
+                        "%s: wrote %s\nFinal size %s (target %s, delta %s%s)\nIterations %d/%d at %.0f kbps\nTotal time %s",
+                        outcome,
+                        result.filePath(),
+                        formatBytes(result.fileSizeBytes()),
+                        formatBytes(result.targetSizeBytes()),
+                        deltaSign,
+                        formatBytes(Math.abs(delta)),
+                        result.iteration(),
+                        request.maxIterations(),
+                        result.videoBitrateKbps(),
+                        formatDuration(result.elapsedSeconds())
                 );
 
                 if (!closeRequested) {
@@ -603,12 +609,33 @@ public final class MainFrame extends JFrame {
             try {
                 binariesReady = get();
                 if (!binariesReady) {
-                    JOptionPane.showMessageDialog(
-                        MainFrame.this,
-                        "FFmpeg and FFprobe are required and were not found in the app directory or PATH.",
-                        "Missing binaries",
-                        JOptionPane.ERROR_MESSAGE
+                    var response = JOptionPane.showConfirmDialog(
+                            MainFrame.this,
+                            "FFmpeg or FFprobe is missing from your system.\nWould you like to download them?",
+                            "Missing binaries",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.INFORMATION_MESSAGE
                     );
+                    if (response != JOptionPane.YES_OPTION) {
+                        dispose();
+                        return;
+                    }
+
+                    binaryDownloaderDialog.setLocationRelativeTo(MainFrame.this);
+                    binaryDownloaderDialog.setVisible(true);
+                    binariesReady = binaryService.hasBinary("ffmpeg")
+                            && binaryService.hasBinary("ffprobe");
+
+                    if (!binariesReady) {
+                        JOptionPane.showMessageDialog(
+                                MainFrame.this,
+                                "FFmpeg/FFprobe download did not complete.",
+                                "Missing binaries",
+                                JOptionPane.ERROR_MESSAGE
+                        );
+                        dispose();
+                        return;
+                    }
                 }
             } catch (Exception exception) {
                 binariesReady = false;
