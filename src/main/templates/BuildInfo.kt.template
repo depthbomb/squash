@@ -1,0 +1,10 @@
+package com.caprinelogic
+
+object BuildInfo {
+    const val APP_NAME = "@APP_NAME@"
+    const val APP_VERSION = "@APP_VERSION@"
+    const val APP_VENDOR = "@APP_VENDOR@"
+    const val APP_REPO_URL = "@APP_REPO_URL@"
+    const val APP_RELEASES_URL = "@APP_RELEASES_URL@"
+    const val APP_ISSUES_URL = "@APP_ISSUES_URL@"
+}

@@ -2,7 +2,6 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
-    id("java")
     id("application")
     id("org.jetbrains.kotlin.jvm") version "2.3.0"
     id("com.gradleup.shadow") version "9.3.1"
@@ -22,7 +21,7 @@ val appReleasesUrl: String by project
 val appLatestReleaseUrl: String by project
 val appIssuesUrl: String by project
 
-val appMainClass = "com.caprinelogic.Main"
+val appMainClass = "com.caprinelogic.MainKt"
 val mainManifest = mapOf("Main-Class" to appMainClass)
 val defaultJlinkOptions = listOf(
     "--strip-debug",
@@ -35,9 +34,9 @@ val jpackageModules = providers.gradleProperty("jpackageModules").orNull?.trim()
 val jpackageInputDir = layout.buildDirectory.dir("libs")
 val jpackageOutputDir = layout.buildDirectory.dir("jpackage/output")
 val jpackageIconFile = layout.projectDirectory.file("packaging/icons/icon.ico").asFile
-val buildInfoOutputDir = layout.buildDirectory.dir("generated/sources/buildInfo/java")
+val buildInfoOutputDir = layout.buildDirectory.dir("generated/sources/buildInfo/kotlin")
 
-fun escapeJavaStringLiteral(value: String): String = buildString {
+fun escapeKotlinStringLiteral(value: String): String = buildString {
     value.forEach { ch ->
         when (ch) {
             '\\' -> append("\\\\")
@@ -68,6 +67,11 @@ java {
 
 kotlin {
     jvmToolchain(25)
+    sourceSets {
+        named("main") {
+            kotlin.srcDir(buildInfoOutputDir)
+        }
+    }
 }
 
 application {
@@ -75,34 +79,23 @@ application {
 }
 
 val buildInfoTokens = mapOf(
-    "APP_NAME" to escapeJavaStringLiteral(appDisplayName),
-    "APP_VERSION" to escapeJavaStringLiteral(appVersion),
-    "APP_VENDOR" to escapeJavaStringLiteral(appVendor),
-    "APP_REPO_URL" to escapeJavaStringLiteral(appRepoUrl),
-    "APP_RELEASES_URL" to escapeJavaStringLiteral(appReleasesUrl),
-    "APP_ISSUES_URL" to escapeJavaStringLiteral(appIssuesUrl)
+    "APP_NAME" to escapeKotlinStringLiteral(appDisplayName),
+    "APP_VERSION" to escapeKotlinStringLiteral(appVersion),
+    "APP_VENDOR" to escapeKotlinStringLiteral(appVendor),
+    "APP_REPO_URL" to escapeKotlinStringLiteral(appRepoUrl),
+    "APP_RELEASES_URL" to escapeKotlinStringLiteral(appReleasesUrl),
+    "APP_ISSUES_URL" to escapeKotlinStringLiteral(appIssuesUrl)
 )
 
 val generateBuildInfo = tasks.register<Copy>("generateBuildInfo") {
     from("src/main/templates") {
-        include("BuildInfo.java.template")
-        rename("BuildInfo.java.template", "BuildInfo.java")
+        include("BuildInfo.kt.template")
+        rename("BuildInfo.kt.template", "BuildInfo.kt")
         filter<ReplaceTokens>("tokens" to buildInfoTokens)
     }
     into(buildInfoOutputDir.map { it.dir("com/caprinelogic") })
     filteringCharset = "UTF-8"
     inputs.properties(buildInfoTokens)
-}
-
-sourceSets {
-    named("main") {
-        java.srcDir(buildInfoOutputDir)
-    }
-}
-
-tasks.withType<JavaCompile>().configureEach {
-    dependsOn(generateBuildInfo)
-    options.encoding = "UTF-8"
 }
 
 tasks.named("compileKotlin") {
