@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Squash.Lib/Squash.Lib.csproj" />
+  <Project Path="Squash/Squash.csproj" />
+</Solution>
