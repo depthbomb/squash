@@ -137,6 +137,7 @@ partial class MainForm
         // c_OutputFileBrowseButton
         // 
         c_OutputFileBrowseButton.Anchor                  = ((System.Windows.Forms.AnchorStyles)(System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right));
+        c_OutputFileBrowseButton.Enabled                 = false;
         c_OutputFileBrowseButton.Location                = new System.Drawing.Point(485, 34);
         c_OutputFileBrowseButton.Name                    = "c_OutputFileBrowseButton";
         c_OutputFileBrowseButton.Size                    = new System.Drawing.Size(85, 24);

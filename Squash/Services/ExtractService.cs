@@ -1,31 +1,22 @@
-﻿using Squash.Lib;
+using Squash.Lib;
 using Squash.Exceptions;
 using System.Diagnostics;
 
 namespace Squash.Services;
 
-public class ExtractService
+public class ExtractService(BinaryLocatorService binaryLocator)
 {
-    private readonly BinaryLocatorService _binaryLocator;
-
-    public ExtractService(BinaryLocatorService binaryLocator)
+    public async Task ExtractFilesFromArchiveAsync(FilePath          archivePath,
+                                                   FilePath          destinationPath,
+                                                   string[]          fileNames,
+                                                   CancellationToken ct = default)
     {
-        _binaryLocator = binaryLocator;
-    }
+        var extractorBinary = await binaryLocator.GetBinaryPathAsync("7za").ConfigureAwait(false);
 
-    public async Task ExtractFilesFromArchiveAsync(FilePath archivePath,
-                                                   FilePath destinationPath,
-                                                   string[] fileNames,
-                                                   CancellationToken ct = default
-    )
-    {
-        var extractorBinary = await _binaryLocator.GetBinaryPathAsync("7za");
-        
         MissingSevenZipBinaryException.ThrowIf(extractorBinary is null);
 
-        var psi = new ProcessStartInfo
+        var psi = new ProcessStartInfo(extractorBinary.FullPath)
         {
-            FileName        = extractorBinary.FullPath,
             UseShellExecute = false,
             CreateNoWindow  = true,
         };
@@ -34,13 +25,35 @@ public class ExtractService
         psi.ArgumentList.Add("-r");
         psi.ArgumentList.Add($"-o{destinationPath.FullPath}");
         psi.ArgumentList.Add("-aoa");
+
         foreach (var fileName in fileNames)
         {
             psi.ArgumentList.Add(fileName);
         }
-        
+
         using var proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start 7za.");
-        
-        await proc.WaitForExitAsync(ct);
+
+        try
+        {
+            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+
+            if (proc.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"7za failed with exit code {proc.ExitCode}.");
+            }
+        }
+        finally
+        {
+            if (!proc.HasExited)
+            {
+                try
+                {
+                    proc.Kill(entireProcessTree: true);
+
+                    await proc.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch { }
+            }
+        }
     }
 }

@@ -1,105 +1,84 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Squash.Lib;
 
 public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
 {
+    private string?   _resolvedPath;
+    private string[]? _parts;
+    private string[]? _suffixes;
+    
     private readonly string _path;
- 
+
     public FilePath(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        
         _path = Normalize(path);
     }
- 
-    public FilePath(params string[] segments) : this(Path.Combine(segments)) { }
- 
-    /// <summary>Returns the current working directory (like Path.cwd()).</summary>
-    public static FilePath Cwd() => new(Directory.GetCurrentDirectory());
- 
-    /// <summary>Returns the current user's home directory (like Path.home()).</summary>
-    public static FilePath Home() => new(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 
+    public FilePath(params string[] segments) : this(Path.Combine(segments)) { }
+
+    public static FilePath Cwd() => new(Directory.GetCurrentDirectory());
+    public static FilePath Home() => new(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
     public static FilePath From(string s) => new(s);
 
-    /// <summary>Join paths with the / operator, mirroring Python's Path / "child".</summary>
     public static FilePath operator /(FilePath left, FilePath right) => left.JoinPath(right);
     public static FilePath operator /(FilePath left, string   right) => left.JoinPath(new FilePath(right));
     public static FilePath operator /(string   left, FilePath right) => new FilePath(left).JoinPath(right);
- 
-    /// <summary>Implicit conversion from string for ergonomic use.</summary>
+
     public static implicit operator FilePath(string s) => new(s);
- 
-    /// <summary>Explicit conversion back to string.</summary>
     public static explicit operator string(FilePath p) => p._path;
- 
-    /// <summary>Full normalized path string.</summary>
+
     public string FullPath => _path;
- 
-    /// <summary>
-    /// All components of the path as an array, similar to Python's Path.parts.
-    /// E.g. "/usr/local/bin" → ["/", "usr", "local", "bin"]
-    /// </summary>
-    public string[] Parts
+
+    public string[] Parts => _parts ??= CalculateParts();
+
+    private string[] CalculateParts()
     {
-        get
+        var partsList = new List<string>();
+        var anchor    = Anchor;
+        if (!string.IsNullOrEmpty(anchor))
         {
-            var parts  = new List<string>();
-            var anchor = Anchor;
-            if (!string.IsNullOrEmpty(anchor))
-            {
-                parts.Add(anchor);
-            }
-            
-            var rel = _path[anchor.Length..].Trim(Path.DirectorySeparatorChar);
-            if (!string.IsNullOrEmpty(rel))
-            {
-                parts.AddRange(rel.Split(Path.DirectorySeparatorChar));
-            }
-            
-            return parts.ToArray();
+            partsList.Add(anchor);
         }
+
+        var rel = _path[anchor.Length..].Trim(Path.DirectorySeparatorChar);
+        if (!string.IsNullOrEmpty(rel))
+        {
+            partsList.AddRange(rel.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        return partsList.ToArray();
     }
- 
-    /// <summary>Drive letter or UNC host (empty on Unix).</summary>
-    public string Drive => Path.GetPathRoot(_path) is { } r
-        ? r is [_, ':', ..] ? r[..2] : ""
-        : "";
- 
-    /// <summary>Root separator, e.g. "/" or "\".</summary>
+
+    public string Drive => Path.GetPathRoot(_path) is [_, ':', ..] r ? r[..2] : "";
+
     public string Root
     {
         get
         {
             var r = Path.GetPathRoot(_path) ?? "";
-            if (r is [_, ':', ..])
+            if (r.Length >= 2 && r[1] == ':')
             {
                 return r.Length > 2 ? r[2..] : "";
             }
-            
             return r.Length > 0 ? r[..1] : "";
         }
     }
- 
-    /// <summary>Drive + Root concatenated (like Python's Path.anchor).</summary>
+
     public string Anchor => Drive + Root;
- 
-    /// <summary>Immediate parent directory.</summary>
+
     public FilePath Parent
     {
         get
         {
-            var dir = System.IO.Path.GetDirectoryName(_path);
+            var dir = Path.GetDirectoryName(_path);
+            
             return string.IsNullOrEmpty(dir) ? new FilePath(".") : new FilePath(dir);
         }
     }
- 
-    /// <summary>
-    /// Sequence of logical ancestors, closest first.
-    /// E.g. "/a/b/c" → ["/a/b", "/a", "/"]
-    /// </summary>
+
     public IEnumerable<FilePath> Parents
     {
         get
@@ -108,80 +87,61 @@ public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
             while (current._path != "." && current._path != current.Parent._path)
             {
                 yield return current;
-                
                 current = current.Parent;
             }
             
             yield return current;
         }
     }
- 
-    /// <summary>Final component (file or directory name).</summary>
+
     public string Name => Path.GetFileName(_path);
- 
-    /// <summary>Name without the last extension.</summary>
     public string Stem => Path.GetFileNameWithoutExtension(_path);
- 
-    /// <summary>Last extension including the dot (e.g. ".txt"), or empty string.</summary>
     public string Suffix => Path.GetExtension(_path) ?? "";
- 
-    /// <summary>All extensions in order (e.g. ".tar.gz" → [".tar", ".gz"]).</summary>
-    public string[] Suffixes
+
+    public string[] Suffixes => _suffixes ??= CalculateSuffixes();
+
+    private string[] CalculateSuffixes()
     {
-        get
+        var name      = Name;
+        var exts      = new List<string>();
+        var remainder = name;
+
+        string ext;
+        while (!string.IsNullOrEmpty(ext = Path.GetExtension(remainder)))
         {
-            var name      = Name;
-            var exts      = new List<string>();
-            var remainder = name;
-            
-            string ext;
-            while (!string.IsNullOrEmpty(ext = Path.GetExtension(remainder)))
-            {
-                exts.Insert(0, ext);
-                remainder = Path.GetFileNameWithoutExtension(remainder);
-            }
-            
-            return exts.ToArray();
+            exts.Insert(0, ext);
+            remainder = Path.GetFileNameWithoutExtension(remainder);
         }
+
+        return exts.ToArray();
     }
- 
-    /// <summary>True if the path points to an existing file or directory.</summary>
+
     public bool Exists() => File.Exists(_path) || Directory.Exists(_path);
- 
-    /// <summary>True if the path is an existing regular file.</summary>
+
     public bool IsFile() => File.Exists(_path);
- 
-    /// <summary>True if the path is an existing directory.</summary>
+
     public bool IsDir() => Directory.Exists(_path);
- 
-    /// <summary>True if the path is an absolute path.</summary>
+
     public bool IsAbsolute() => Path.IsPathRooted(_path);
- 
-    /// <summary>Join this path with one or more child segments.</summary>
+
     public FilePath JoinPath(params string[] others)
     {
-        var all = new[] { _path }.Concat(others).ToArray();
-        
-        return new FilePath(Path.Combine(all));
-    }
- 
-    public FilePath JoinPath(params FilePath[] others) => JoinPath(others.Select(p => p._path).ToArray());
- 
-    /// <summary>Return a new path with the name changed.</summary>
-    public FilePath WithName(string newName)
-    {
-        if (string.IsNullOrEmpty(Name))
+        if (others.Length == 0)
         {
-            throw new InvalidOperationException("Path has no name component.");
+            return this;
         }
         
-        return Parent / newName;
+        var combined = Path.Combine([_path, ..others]);
+        
+        return new FilePath(combined);
     }
- 
-    /// <summary>Return a new path with the stem changed (extension preserved).</summary>
+
+    public FilePath JoinPath(params FilePath[] others) => JoinPath(others.Select(p => p._path).ToArray());
+
+    public FilePath WithName(string newName) => Parent / newName;
+
     public FilePath WithStem(string newStem) => WithName(newStem + Suffix);
- 
-    /// <summary>Return a new path with the suffix changed (or removed if empty).</summary>
+    
     public FilePath WithSuffix(string newSuffix)
     {
         if (!string.IsNullOrEmpty(newSuffix) && newSuffix[0] != '.')
@@ -191,124 +151,100 @@ public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
         
         return WithName(Stem + newSuffix);
     }
- 
-    /// <summary>
-    /// Make this path absolute. Resolves symlinks and ".." segments
-    /// (like Python's Path.resolve()).
-    /// </summary>
-    public FilePath Resolve()
-    {
-        var full = System.IO.Path.GetFullPath(_path);
-        // Optionally resolve symlinks on platforms that support it.
-        try
-        {
-            full = new FileInfo(full).FullName;
-        } catch { }
-        
-        return new FilePath(full);
-    }
- 
-    /// <summary>
-    /// Make this path relative to <paramref name="other"/>
-    /// (like Python's Path.relative_to()).
-    /// </summary>
+
+    public FilePath Resolve() => new(Path.GetFullPath(_path));
+
+    private string GetResolvedPath() => _resolvedPath ??= Path.GetFullPath(_path);
+
     public FilePath RelativeTo(FilePath other)
     {
-        var abs      = Resolve()._path;
-        var otherAbs = other.Resolve()._path;
-        if (!abs.StartsWith(otherAbs, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException($"'{abs}' is not relative to '{otherAbs}'.");
-        }
-        
-        var rel = abs[otherAbs.Length..].TrimStart(System.IO.Path.DirectorySeparatorChar);
-        
-        return new FilePath(rel.Length > 0 ? rel : ".");
-    }
- 
-    /// <summary>True if this path is relative to <paramref name="other"/>.</summary>
-    public bool IsRelativeTo(FilePath other)
-    {
         try
         {
-            RelativeTo(other);
-            return true;
+            return new FilePath(Path.GetRelativePath(other._path, _path));
         }
-        catch
+        catch (ArgumentException ex)
         {
-            return false;
+            throw new ArgumentException($"Could not make '{_path}' relative to '{other._path}'.", ex);
         }
     }
- 
-    /// <summary>
-    /// Glob the given relative pattern, yielding all matching paths.
-    /// Supports * and ** (recursive) like Python's Path.glob().
-    /// </summary>
+
+    public bool IsRelativeTo(FilePath other)
+    {
+        var rel = Path.GetRelativePath(other._path, _path);
+        
+        return !rel.StartsWith("..") && !Path.IsPathRooted(rel);
+    }
+
+    public bool Match(string pattern)
+    {
+        var regexPattern = GlobToRegex(pattern);
+        
+        return Regex.IsMatch(_path, regexPattern, RegexOptions.IgnoreCase);
+    }
+
     public IEnumerable<FilePath> Glob(string pattern)
     {
         var recursive = pattern.Contains("**");
         var option    = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+        var regex     = new Regex(GlobToRegex(pattern), RegexOptions.IgnoreCase);
 
-        var regexPattern = GlobToRegex(pattern);
-        var regex        = new Regex(regexPattern, RegexOptions.IgnoreCase);
- 
-        var baseDir = IsDir() ? _path : Parent._path;
+        var baseDir = IsDir() ? _path : Parent.Exists() ? Parent._path : ".";
         if (!Directory.Exists(baseDir))
         {
             yield break;
         }
- 
+
         foreach (string entry in Directory.EnumerateFileSystemEntries(baseDir, "*", option))
         {
-            var rel = entry.Substring(baseDir.Length).TrimStart(System.IO.Path.DirectorySeparatorChar);
+            var rel = Path.GetRelativePath(baseDir, entry);
             if (regex.IsMatch(rel))
             {
                 yield return new FilePath(entry);
             }
         }
     }
- 
-    /// <summary>Recursively glob, equivalent to Python's Path.rglob(pattern).</summary>
+
     public IEnumerable<FilePath> RGlob(string pattern) => Glob("**/" + pattern);
- 
+
     private static string GlobToRegex(string glob)
     {
         var sb = new StringBuilder("^");
-        int i = 0;
+        var i  = 0;
         while (i < glob.Length)
         {
             switch (glob[i])
             {
                 case '*' when i + 1 < glob.Length && glob[i + 1] == '*':
-                {
                     sb.Append(".*");
                     i += 2;
-                    if (i < glob.Length && (glob[i] == '/' || glob[i] == '\\')) i++;
+                    if (i < glob.Length && (glob[i] == '/' || glob[i] == '\\'))
+                    {
+                        i++;
+                    }
                     break;
-                }
                 case '*':
-                    sb.Append(@"[^/\\]*"); i++;
+                    sb.Append(@"[^/\\]*");
+                    i++;
                     break;
                 case '?':
-                    sb.Append(@"[^/\\]"); i++;
+                    sb.Append(@"[^/\\]");
+                    i++;
                     break;
                 case '/':
-                    sb.Append(@"[\\/]"); i++;
+                    sb.Append(@"[\\/]");
+                    i++;
                     break;
                 default:
-                    sb.Append(Regex.Escape(glob[i].ToString())); i++;
+                    sb.Append(Regex.Escape(glob[i].ToString()));
+                    i++;
                     break;
             }
         }
-        
         sb.Append('$');
         
         return sb.ToString();
     }
- 
-    /// <summary>
-    /// Yield immediate children of this directory (like Python's Path.iterdir()).
-    /// </summary>
+
     public IEnumerable<FilePath> IterDir()
     {
         if (!IsDir())
@@ -318,8 +254,7 @@ public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
         
         return Directory.EnumerateFileSystemEntries(_path).Select(e => new FilePath(e));
     }
- 
-    /// <summary>Create this directory (and optionally parents). Like Python's Path.mkdir().</summary>
+
     public void Mkdir(bool parents = false, bool existOk = false)
     {
         if (Directory.Exists(_path))
@@ -328,18 +263,23 @@ public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
             return;
         }
 
-        Directory.CreateDirectory(_path);
-
-        if (!parents && !Directory.Exists(Parent._path))
+        if (parents)
         {
-            throw new DirectoryNotFoundException($"Parent directory does not exist: {Parent._path}");
+            Directory.CreateDirectory(_path);
+        }
+        else
+        {
+            if (!Directory.Exists(Parent._path))
+            {
+                throw new DirectoryNotFoundException($"Parent directory does not exist: {Parent._path}");
+            }
+            
+            Directory.CreateDirectory(_path);
         }
     }
- 
-    /// <summary>Remove this directory (must be empty). Like Python's Path.rmdir().</summary>
+
     public void Rmdir() => Directory.Delete(_path, recursive: false);
- 
-    /// <summary>Remove this file. Like Python's Path.unlink().</summary>
+
     public void Unlink(bool missingOk = false)
     {
         if (!Exists())
@@ -348,16 +288,13 @@ public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
             {
                 throw new FileNotFoundException($"File not found: {_path}");
             }
+            
             return;
         }
         
         File.Delete(_path);
     }
- 
-    /// <summary>
-    /// Rename (move) the path. Returns a Path pointing to the new location.
-    /// Like Python's Path.rename().
-    /// </summary>
+
     public FilePath Rename(FilePath target)
     {
         if (IsDir())
@@ -371,28 +308,25 @@ public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
         
         return target;
     }
- 
+
     public FilePath Rename(string target) => Rename(new FilePath(target));
- 
-    /// <summary>
-    /// Rename, overwriting the destination if it exists.
-    /// Like Python's Path.replace().
-    /// </summary>
+
     public FilePath Replace(FilePath target)
     {
-        if (target.Exists())
+        if (IsDir())
         {
-            target.Unlink(missingOk: true);
+            Directory.Move(_path, target._path);
+        }
+        else
+        {
+            File.Move(_path, target._path, overwrite: true);
         }
         
-        return Rename(target);
+        return target;
     }
- 
+
     public FilePath Replace(string target) => Replace(new FilePath(target));
- 
-    /// <summary>
-    /// Create an empty file or update its timestamp. Like Python's Path.touch().
-    /// </summary>
+
     public void Touch(bool existOk = true)
     {
         if (File.Exists(_path))
@@ -406,103 +340,73 @@ public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
         }
         else
         {
-            File.WriteAllBytes(_path, Array.Empty<byte>());
+            File.WriteAllBytes(_path, []);
         }
     }
 
     public FileInfo FileInfo() => new(_path);
+    public FileSystemInfo Stat() => IsDir() ? new DirectoryInfo(_path) : new FileInfo(_path);
 
-    /// <summary>Read all text. Like Python's Path.read_text().</summary>
     public string ReadText(Encoding? encoding = null) => File.ReadAllText(_path, encoding ?? Encoding.UTF8);
- 
-    /// <summary>Write text, overwriting if exists. Like Python's Path.write_text().</summary>
+    public Task<string> ReadTextAsync(Encoding? encoding = null, CancellationToken ct = default) => File.ReadAllTextAsync(_path, encoding ?? Encoding.UTF8, ct);
     public void WriteText(string content, Encoding? encoding = null) => File.WriteAllText(_path, content, encoding ?? Encoding.UTF8);
- 
-    /// <summary>Read all bytes. Like Python's Path.read_bytes().</summary>
+    public Task WriteTextAsync(string content, Encoding? encoding = null, CancellationToken ct = default) => File.WriteAllTextAsync(_path, content, encoding ?? Encoding.UTF8, ct);
+
     public byte[] ReadBytes() => File.ReadAllBytes(_path);
- 
-    /// <summary>Write bytes, overwriting if exists. Like Python's Path.write_bytes().</summary>
+    public Task<byte[]> ReadBytesAsync(CancellationToken ct = default) => File.ReadAllBytesAsync(_path, ct);
     public void WriteBytes(byte[] data) => File.WriteAllBytes(_path, data);
- 
-    /// <summary>Open a StreamReader. Like Python's Path.open() for reading text.</summary>
+    public Task WriteBytesAsync(byte[] data, CancellationToken ct = default) => File.WriteAllBytesAsync(_path, data, ct);
+
     public StreamReader OpenText(Encoding? encoding = null) => new(_path, encoding ?? Encoding.UTF8);
- 
-    /// <summary>Open a StreamWriter. Like Python's Path.open() for writing text.</summary>
     public StreamWriter OpenWrite(bool append = false, Encoding? encoding = null) => new(_path, append, encoding ?? Encoding.UTF8);
- 
-    /// <summary>Open a raw FileStream.</summary>
     public FileStream Open(FileMode mode, FileAccess access = FileAccess.ReadWrite) => new(_path, mode, access);
-    public FileStream Open(FileMode mode, FileAccess access, FileShare fileShare, int bufferSize, bool useAsync)
-        => new(_path, mode, access, fileShare, bufferSize, useAsync);
- 
-    /// <summary>
-    /// Returns file/directory info. Like Python's Path.stat().
-    /// Use .Length, .LastWriteTime, .Attributes, etc. on the result.
-    /// </summary>
-    public FileSystemInfo Stat()
-    {
-        if (IsDir())
-        {
-            return new DirectoryInfo(_path);
-        }
-        
-        return new FileInfo(_path);
-    }
- 
+    public FileStream Open(FileMode mode, FileAccess access, FileShare fileShare, int bufferSize, bool useAsync) => new(_path, mode, access, fileShare, bufferSize, useAsync);
+
     public bool Equals(FilePath? other)
     {
         if (other is null)
         {
             return false;
         }
+        var comparison = Environment.OSVersion.Platform == PlatformID.Win32NT ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         
-        return string.Equals(
-            Resolve()._path, other.Resolve()._path,
-            Environment.OSVersion.Platform == PlatformID.Win32NT
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal);
+        return string.Equals(GetResolvedPath(), other.GetResolvedPath(), comparison);
     }
- 
-    public override bool Equals(object? obj) => obj is FilePath p && Equals(p);
- 
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Resolve()._path);
- 
-    public int CompareTo(FilePath? other) => string.Compare(_path, other?._path, StringComparison.OrdinalIgnoreCase);
-    
-    public static FilePath TempDir() => new(Path.GetTempPath());
 
+    public override bool Equals(object? obj) => obj is FilePath p && Equals(p);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(GetResolvedPath());
+    public int CompareTo(FilePath? other) => string.Compare(_path, other?._path, StringComparison.OrdinalIgnoreCase);
+
+    public static FilePath TempDir() => new(Path.GetTempPath());
     public static FilePath TempFile() => new(Path.GetTempFileName());
- 
+
     public static bool operator ==(FilePath? a, FilePath? b) => a?.Equals(b) ?? b is null;
     public static bool operator !=(FilePath? a, FilePath? b) => !(a == b);
-    public static bool operator <(FilePath?  a, FilePath? b) => a.CompareTo(b) < 0;
-    public static bool operator >(FilePath?  a, FilePath? b) => a.CompareTo(b) > 0;
-    public static bool operator <=(FilePath? a, FilePath? b) => a.CompareTo(b) <= 0;
-    public static bool operator >=(FilePath? a, FilePath? b) => a.CompareTo(b) >= 0;
- 
-    /// <summary>The normalized path string (same as FullPath).</summary>
+    public static bool operator <(FilePath?  a, FilePath? b) => a is not null ? a.CompareTo(b) < 0 : b is not null;
+    public static bool operator >(FilePath?  a, FilePath? b) => a is not null && a.CompareTo(b) > 0;
+    public static bool operator <=(FilePath? a, FilePath? b) => a is null || a.CompareTo(b) <= 0;
+    public static bool operator >=(FilePath? a, FilePath? b) => a is null ? b is null : a.CompareTo(b) >= 0;
+
     public override string ToString() => _path;
- 
-    /// <summary>POSIX-style representation using forward slashes.</summary>
     public string AsPosix() => _path.Replace('\\', '/');
-    
+
     private static string Normalize(string raw)
     {
-        // Collapse redundant separators; keep trailing sep only for root.
-        var combined = raw.Replace('/', Path.DirectorySeparatorChar);
-        // Preserve UNC prefix on Windows
-        var isUnc  = combined.StartsWith(@"\\");
-        var parts  = combined.Split([Path.DirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
-        var joined = string.Join(Path.DirectorySeparatorChar.ToString(), parts);
-        if (isUnc)
+        if (string.IsNullOrWhiteSpace(raw))
         {
-            joined = @"\\" + joined;
-        }
-        else if (combined.Length > 0 && combined[0] == System.IO.Path.DirectorySeparatorChar)
-        {
-            joined = Path.DirectorySeparatorChar + joined;
+            return ".";
         }
         
-        return joined;
+        var replaced = raw.Replace('/', Path.DirectorySeparatorChar);
+        if (replaced.Length > 1 && replaced.EndsWith(Path.DirectorySeparatorChar))
+        {
+            var root = Path.GetPathRoot(replaced);
+            if (replaced != root)
+            {
+                replaced = replaced.TrimEnd(Path.DirectorySeparatorChar);
+            }
+        }
+        
+        return replaced;
     }
 }

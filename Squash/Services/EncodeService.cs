@@ -1,4 +1,4 @@
-﻿using Squash.Lib;
+using Squash.Lib;
 using System.Text;
 using System.Diagnostics;
 using System.Globalization;
@@ -16,14 +16,16 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         double   VideoBitrateKbps,
         double   ElapsedSeconds
     );
-    
+
     public record ProgressUpdate(int ProgressPercent, string TitleText);
-    
+
     public delegate void ProgressListener(ProgressUpdate update);
-    
+
     private record VideoInfo(double DurationSeconds, double? VideoBitrateKbps);
 
     private record Sample(double BitrateKbps, long FileSize);
+
+    private record ProcessResult(int ExitCode, string StandardError);
 
     private const long   BytesPerMegabyte    = 1024L * 1024L;
     private const int    MinVideoBitrate     = 100;
@@ -45,25 +47,26 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
         if (targetSizeMb < 1)
             throw new ArgumentException("Target size must be greater than 0.");
-
+        
         if (tolerancePercent is <= 0.0 or > 50.0)
             throw new ArgumentException("Tolerance must be between 0 and 50.");
-
-        if (maxIterations <= 0)
+        
+        if (maxIterations <= 0) 
             throw new ArgumentException("Max iterations must be greater than 0.");
-
+        
         if (qualityPreset is < 1 or > 4)
             throw new ArgumentException("Quality preset must be between 1 and 4.");
-
+        
         if (inputFile.FullPath == outputFile.FullPath)
             throw new ArgumentException("Output file cannot be the same as input file.");
 
         var startedAt        = Stopwatch.GetTimestamp();
-        var ffprobePath      = await RequireBinaryPathAsync("ffprobe", "FFprobe was not found.");
-        var ffmpegPath       = await RequireBinaryPathAsync("ffmpeg",  "FFmpeg was not found.");
-        var targetSizeBytes  = targetSizeMb * BytesPerMegabyte;
-        var toleranceBytes   = targetSizeBytes      * (tolerancePercent / 100.0);
+        var ffprobePath      = await RequireBinaryPathAsync("ffprobe", "FFprobe was not found.").ConfigureAwait(false);
+        var ffmpegPath       = await RequireBinaryPathAsync("ffmpeg",  "FFmpeg was not found.").ConfigureAwait(false);
+        var targetSizeBytes  = targetSizeMb    * BytesPerMegabyte;
+        var toleranceBytes   = targetSizeBytes * (tolerancePercent / 100.0);
         var currentVideoSize = inputFile.FileInfo().Length;
+
         if (currentVideoSize <= targetSizeBytes)
         {
             return new EncodeResult(
@@ -76,7 +79,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                 ElapsedSeconds: ElapsedSecondsSince(startedAt));
         }
 
-        var (duration, videoBitrateKbps) = await GetVideoInfoAsync(ffprobePath, inputFile, ct);
+        var (duration, videoBitrateKbps) = await GetVideoInfoAsync(ffprobePath, inputFile, ct).ConfigureAwait(false);
         if (duration <= 0.0)
         {
             throw new InvalidOperationException("Input video duration is invalid or unavailable.");
@@ -102,13 +105,9 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         Sample? bestOver           = null;
         long?   lastEncodedSize    = null;
         double? lastEncodedBitrate = null;
-        var     tempOutput         = FilePath.TempFile();
-
-        // Ensure the temp file has an .mp4 extension for ffmpeg.
-        var tempOutputMp4 = tempOutput.WithSuffix(".mp4");
-        tempOutput.Rename(tempOutputMp4);
-        tempOutput = tempOutputMp4;
-
+        
+        var tempOutput = FilePath.TempFile().WithSuffix(".mp4");
+        
         try
         {
             int iteration = 0;
@@ -116,14 +115,12 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             while (iteration < maxIterations)
             {
                 ct.ThrowIfCancellationRequested();
+                
                 iteration++;
 
                 progressListener(new ProgressUpdate(
                     0,
-                    string.Format(
-                        CultureInfo.InvariantCulture,
-                        "Iteration {0}/{1} at {2:F0} kbps",
-                        iteration, maxIterations, currentBitrate)));
+                    $"Iteration {iteration}/{maxIterations} at {currentBitrate:F0} kbps"));
 
                 await EncodeVideoAsync(
                     ffmpegPath: ffmpegPath,
@@ -137,18 +134,21 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                     maxIterations: maxIterations,
                     progressListener: progressListener,
                     cancellationToken: ct
-                );
+                ).ConfigureAwait(false);
 
                 long newFileSize = tempOutput.FileInfo().Length;
+                
                 lastEncodedSize    = newFileSize;
                 lastEncodedBitrate = currentBitrate;
 
                 if (newFileSize < targetSizeBytes)
                 {
                     if (bestUnder == null || newFileSize > bestUnder.FileSize)
+                    {
                         bestUnder = new Sample(currentBitrate, newFileSize);
+                    }
 
-                    double gapToTarget = targetSizeBytes - newFileSize;
+                    var gapToTarget = targetSizeBytes - newFileSize;
                     if (gapToTarget < toleranceBytes)
                     {
                         tempOutput.Rename(outputFile);
@@ -167,7 +167,9 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                 else
                 {
                     if (bestOver == null || newFileSize < bestOver.FileSize)
+                    {
                         bestOver = new Sample(currentBitrate, newFileSize);
+                    }
 
                     maxBitrate = currentBitrate;
                 }
@@ -203,16 +205,10 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
             if (bestOver != null)
             {
-                throw new InvalidOperationException(string.Format(
-                    CultureInfo.InvariantCulture,
-                    "Could not reach target after {0} iterations. Closest over-target result was {1} at {2:F0} kbps.",
-                    maxIterations, FormatBytes(bestOver.FileSize), bestOver.BitrateKbps));
+                throw new InvalidOperationException($"Could not reach target after {maxIterations} iterations. Closest over-target result was {FormatBytes(bestOver.FileSize)} at {bestOver.BitrateKbps:F0} kbps.");
             }
 
-            throw new InvalidOperationException(string.Format(
-                CultureInfo.InvariantCulture,
-                "Could not reach target after {0} iterations. Final result was {1}.",
-                maxIterations, FormatBytes(finalSize)));
+            throw new InvalidOperationException($"Could not reach target after {maxIterations} iterations. Final result was {FormatBytes(finalSize)}.");
         }
         finally
         {
@@ -220,39 +216,28 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         }
     }
 
-    private static async Task<VideoInfo> GetVideoInfoAsync(FilePath          ffprobePath,
-                                                           FilePath          inputFile,
-                                                           CancellationToken ct)
+    private static async Task<VideoInfo> GetVideoInfoAsync(string ffprobePath, FilePath inputFile, CancellationToken ct)
     {
-        var psi = new ProcessStartInfo(ffprobePath.FullPath)
+        var args = new List<string>
         {
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            UseShellExecute        = false,
-            StandardOutputEncoding = Encoding.UTF8,
-            CreateNoWindow         = true
+            "-v", "error",
+            "-show_entries", "format=duration,bit_rate",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            inputFile.FullPath
         };
 
-        psi.ArgumentList.Add("-v");
-        psi.ArgumentList.Add("error");
-        psi.ArgumentList.Add("-show_entries");
-        psi.ArgumentList.Add("format=duration,bit_rate");
-        psi.ArgumentList.Add("-of");
-        psi.ArgumentList.Add("default=noprint_wrappers=1:nokey=1");
-        psi.ArgumentList.Add(inputFile.FullPath);
-
-        using var proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start FFprobe.");
-
         var lines = new List<string>();
-        while (await proc.StandardOutput.ReadLineAsync(ct) is { } line)
+        var result = await ExecuteProcessAsync(ffprobePath, args, line =>
         {
             if (!string.IsNullOrWhiteSpace(line))
+            {
                 lines.Add(line.Trim());
-        }
+            }
+            
+            return Task.CompletedTask;
+        }, ct).ConfigureAwait(false);
 
-        await proc.WaitForExitAsync(ct);
-
-        if (proc.ExitCode != 0 || lines.Count == 0)
+        if (result.ExitCode != 0 || lines.Count == 0)
         {
             throw new InvalidOperationException("FFprobe failed to read input video metadata.");
         }
@@ -276,7 +261,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
     }
 
     private static async Task EncodeVideoAsync(
-        FilePath          ffmpegPath,
+        string            ffmpegPath,
         FilePath          inputFile,
         FilePath          outputFile,
         double            videoBitrate,
@@ -288,7 +273,79 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         ProgressListener  progressListener,
         CancellationToken cancellationToken)
     {
-        var psi = new ProcessStartInfo(ffmpegPath.FullPath)
+        var args = new List<string>
+        {
+            "-hide_banner", "-loglevel", "error", "-y",
+            "-i", inputFile.FullPath,
+            "-b:v", string.Format(CultureInfo.InvariantCulture, "{0:F0}k", videoBitrate),
+            "-b:a", $"{audioBitrate}k"
+        };
+
+        args.AddRange(GetEncodeSettings(qualityPreset));
+        args.AddRange(["-progress", "pipe:1", "-nostats", outputFile.AsPosix()]);
+
+        var progressData = new Dictionary<string, string>(StringComparer.Ordinal);
+        
+        string? lastMsgLine = null;
+
+        var result = await ExecuteProcessAsync(ffmpegPath, args, line =>
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return Task.CompletedTask;
+            }
+
+            var sep = trimmed.IndexOf('=', StringComparison.Ordinal);
+            if (sep <= 0)
+            {
+                lastMsgLine = trimmed;
+                return Task.CompletedTask;
+            }
+
+            var key   = trimmed[..sep];
+            var value = trimmed[(sep + 1)..];
+            
+            progressData[key] = value;
+
+            if (key == "progress" && value == "continue")
+            {
+                var percent = ComputePercent(progressData, duration);
+                var status  = BuildProgressStatus(progressData, duration);
+                var title   = $"Iteration {iteration}/{maxIterations}{(string.IsNullOrWhiteSpace(status) ? "" : $" - {status}")}";
+                
+                progressListener(new ProgressUpdate(percent, title));
+            }
+            
+            return Task.CompletedTask;
+        }, cancellationToken).ConfigureAwait(false);
+
+        if (result.ExitCode != 0)
+        {
+            var message = $"FFmpeg failed with exit code {result.ExitCode}.";
+            if (!string.IsNullOrWhiteSpace(lastMsgLine))
+            {
+                message += $" {lastMsgLine}";
+            }
+            else if (!string.IsNullOrWhiteSpace(result.StandardError))
+            {
+                message += $" {result.StandardError.Trim()}";
+            }
+
+            throw new InvalidOperationException(message);
+        }
+
+        progressListener(new ProgressUpdate(100, $"Iteration {iteration}/{maxIterations} complete"));
+    }
+
+    private static async Task<ProcessResult> ExecuteProcessAsync(
+        string              executable,
+        List<string>        arguments,
+        Func<string, Task>? onStdoutLine,
+        CancellationToken   ct
+    )
+    {
+        var psi = new ProcessStartInfo(executable)
         {
             RedirectStandardOutput = true,
             RedirectStandardError  = true,
@@ -297,158 +354,71 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             CreateNoWindow         = true
         };
 
-        psi.ArgumentList.Add("-hide_banner");
-        psi.ArgumentList.Add("-loglevel");
-        psi.ArgumentList.Add("error");
-        psi.ArgumentList.Add("-y");
-        psi.ArgumentList.Add("-i");
-        psi.ArgumentList.Add(inputFile.FullPath);
-        psi.ArgumentList.Add("-b:v");
-        psi.ArgumentList.Add(string.Format(CultureInfo.InvariantCulture, "{0:F0}k", videoBitrate));
-        psi.ArgumentList.Add("-b:a");
-        psi.ArgumentList.Add($"{audioBitrate}k");
-
-        foreach (string arg in GetEncodeSettings(qualityPreset))
+        foreach (var arg in arguments)
         {
             psi.ArgumentList.Add(arg);
         }
 
-        psi.ArgumentList.Add("-progress");
-        psi.ArgumentList.Add("pipe:1");
-        psi.ArgumentList.Add("-nostats");
-        psi.ArgumentList.Add(outputFile.FullPath);
+        using var proc = Process.Start(psi) ?? throw new InvalidOperationException($"Failed to start {executable}.");
 
-        using var proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start FFmpeg.");
+        var stderrTask = proc.StandardError.ReadToEndAsync(ct);
 
-        var stderrTask   = proc.StandardError.ReadToEndAsync(cancellationToken);
-        var progressData = new Dictionary<string, string>(StringComparer.Ordinal);
-
-        string? lastMsgLine = null;
-
-        while (await proc.StandardOutput.ReadLineAsync(cancellationToken) is { } rawLine)
+        try
         {
-            if (cancellationToken.IsCancellationRequested)
+            if (onStdoutLine != null)
             {
-                proc.Kill(entireProcessTree: true);
-                cancellationToken.ThrowIfCancellationRequested();
+                while (await proc.StandardOutput.ReadLineAsync(ct).ConfigureAwait(false) is { } line)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    await onStdoutLine(line).ConfigureAwait(false);
+                }
             }
 
-            var line = rawLine.Trim();
-            if (string.IsNullOrEmpty(line))
+            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+
+            return new ProcessResult(proc.ExitCode, await stderrTask.ConfigureAwait(false));
+        }
+        finally
+        {
+            if (!proc.HasExited)
             {
-                continue;
-            }
-
-            var sep = line.IndexOf('=', StringComparison.Ordinal);
-            if (sep <= 0)
-            {
-                lastMsgLine = line;
-                continue;
-            }
-
-            var key   = line[..sep];
-            var value = line[(sep + 1)..];
-            
-            progressData[key] = value;
-
-            if (key == "progress" && value == "continue")
-            {
-                var percent = ComputePercent(progressData, duration);
-                var status  = BuildProgressStatus(progressData, duration);
-                var title   = string.Format(
-                    CultureInfo.InvariantCulture,
-                    "Iteration {0}/{1}{2}",
-                    iteration, maxIterations,
-                    string.IsNullOrWhiteSpace(status) ? "" : $" - {status}");
-
-                progressListener(new ProgressUpdate(percent, title));
+                try
+                {
+                    proc.Kill(entireProcessTree: true);
+                    await proc.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch {}
             }
         }
-
-        await proc.WaitForExitAsync(cancellationToken);
-
-        if (proc.ExitCode != 0)
-        {
-            var stderr  = await stderrTask;
-            var message = $"FFmpeg failed with exit code {proc.ExitCode}.";
-            if (!string.IsNullOrWhiteSpace(lastMsgLine))
-            {
-                message += $" {lastMsgLine}";
-            }
-            else if (!string.IsNullOrWhiteSpace(stderr))
-            {
-                message += $" {stderr.Trim()}";
-            }
-
-            throw new InvalidOperationException(message);
-        }
-
-        progressListener(new ProgressUpdate(
-            100,
-            string.Format(CultureInfo.InvariantCulture, "Iteration {0}/{1} complete", iteration, maxIterations)));
     }
 
-    private static IEnumerable<string> GetEncodeSettings(int qualityPreset)
+    private static IEnumerable<string> GetEncodeSettings(int qualityPreset) => qualityPreset switch
     {
-        var args = new List<string>
-        {
-            "-c:a", "aac",
-            "-profile:v", "main",
-            "-movflags", "+faststart",
-            "-pix_fmt", "yuv420p",
-        };
-
-        switch (qualityPreset)
-        {
-            case 1: args.AddRange(["-c:v", "libx264", "-preset", "medium"]);   break;
-            case 2: args.AddRange(["-c:v", "libx265", "-preset", "medium"]);   break;
-            case 3: args.AddRange(["-c:v", "libx265", "-preset", "slow"]);     break;
-            case 4: args.AddRange(["-c:v", "libx265", "-preset", "veryslow"]); break;
-            default: throw new ArgumentException($"Unexpected quality preset: {qualityPreset}");
-        }
-
-        return args;
-    }
+        1 => ["-c:v", "libx264", "-preset", "medium", "-c:a", "aac", "-profile:v", "main", "-movflags", "+faststart", "-pix_fmt", "yuv420p"],
+        2 => ["-c:v", "libx265", "-preset", "medium", "-c:a", "aac", "-profile:v", "main", "-movflags", "+faststart", "-pix_fmt", "yuv420p"],
+        3 => ["-c:v", "libx265", "-preset", "slow", "-c:a", "aac", "-profile:v", "main", "-movflags", "+faststart", "-pix_fmt", "yuv420p"],
+        4 => ["-c:v", "libx265", "-preset", "veryslow", "-c:a", "aac", "-profile:v", "main", "-movflags", "+faststart", "-pix_fmt", "yuv420p"],
+        _ => throw new ArgumentException($"Unexpected quality preset: {qualityPreset}")
+    };
 
     private static int ComputePercent(IReadOnlyDictionary<string, string> progress, double duration)
     {
-        if (duration <= 0.0)
+        if (duration <= 0.0 || !progress.TryGetValue("out_time_ms", out var raw) || !long.TryParse(raw, out var micros))
         {
             return 0;
         }
-
-        if (!progress.TryGetValue("out_time_ms", out string? raw))
-        {
-            return 0;
-        }
-
-        if (long.TryParse(raw, out long outTimeMicros))
-        {
-            var outSeconds = outTimeMicros / 1_000_000.0;
-            
-            return (int)Math.Clamp(outSeconds / duration * 100.0, 0.0, 100.0);
-        }
-
-        return 0;
+        
+        return (int)Math.Clamp((micros / 1_000_000.0) / duration * 100.0, 0.0, 100.0);
     }
 
     private static string BuildProgressStatus(IReadOnlyDictionary<string, string> progress, double duration)
     {
-        progress.TryGetValue("out_time_ms", out string? outTimeMicros);
-        progress.TryGetValue("speed", out string? speed);
-        progress.TryGetValue("fps", out string? fps);
-        progress.TryGetValue("bitrate", out string? bitrate);
+        progress.TryGetValue("out_time_ms", out var outTimeMicros);
+        progress.TryGetValue("speed", out var speed);
+        progress.TryGetValue("fps", out var fps);
+        progress.TryGetValue("bitrate", out var bitrate);
 
-        double? etaSeconds     = null;
-        double? speedMultiplier = ParseSpeedMultiplier(speed);
-        if (speedMultiplier is > 0 && outTimeMicros != null && long.TryParse(outTimeMicros, out long micros))
-        {
-            var outSeconds = micros / 1_000_000.0;
-            var remaining  = Math.Max(0.0, duration - outSeconds);
-
-            etaSeconds = remaining / speedMultiplier.Value;
-        }
-
+        var speedMultiplier = ParseSpeedMultiplier(speed);
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(speed))
         {
@@ -465,9 +435,10 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             parts.Add($"BR {bitrate.Trim()}");
         }
 
-        if (etaSeconds.HasValue)
+        if (speedMultiplier is > 0 && outTimeMicros != null && long.TryParse(outTimeMicros, out var micros))
         {
-            parts.Add($"ETA {FormatDuration(etaSeconds.Value)}");
+            var remaining = Math.Max(0.0, duration - micros / 1_000_000.0);
+            parts.Add($"ETA {FormatDuration(remaining / speedMultiplier.Value)}");
         }
 
         return string.Join(", ", parts);
@@ -479,11 +450,10 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         {
             return null;
         }
-
+        
         var trimmed = speed.Trim().TrimEnd('x');
-        return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
-            ? v
-            : null;
+        
+        return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
     }
 
     private static double CalculateTargetBitrate(double duration, long targetSizeBytes, int audioBitrate)
@@ -492,11 +462,8 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         {
             return MinVideoBitrate;
         }
-
-        var totalBitrate       = targetSizeBytes * 8.0         / duration / 1_000.0;
-        var targetVideoBitrate = (totalBitrate - audioBitrate) * ContainerOverhead;
         
-        return Math.Max(MinVideoBitrate, targetVideoBitrate);
+        return Math.Max(MinVideoBitrate, (targetSizeBytes * 8.0 / duration / 1_000.0 - audioBitrate) * ContainerOverhead);
     }
 
     private static int SelectAudioBitrate(double duration, long targetSizeBytes, int defaultAudioBitrate)
@@ -505,70 +472,32 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         {
             return defaultAudioBitrate;
         }
-
-        var totalBitrate  = targetSizeBytes * 8.0 / duration / 1_000.0;
-        var minVideoTotal = MinVideoBitrate       / ContainerOverhead;
-        var maxAudio      = totalBitrate - minVideoTotal;
-
-        if (maxAudio >= defaultAudioBitrate)
-        {
-            return defaultAudioBitrate;
-        }
-
-        return maxAudio <= 0.0 ? MinAudioBitrate : Math.Max(MinAudioBitrate, (int)maxAudio);
+        
+        var totalBitrate = targetSizeBytes                * 8.0 / duration / 1_000.0;
+        var maxAudio     = totalBitrate - MinVideoBitrate / ContainerOverhead;
+        
+        return maxAudio >= defaultAudioBitrate ? defaultAudioBitrate : (maxAudio <= 0.0 ? MinAudioBitrate : Math.Max(MinAudioBitrate, (int)maxAudio));
     }
 
-    private static double EstimateNextBitrate(double currentBitrate,
-                                              long   currentSize,
-                                              long   targetSize,
-                                              double minBitrate,
-                                              double maxBitrate,
-                                              Sample? under,
-                                              Sample? over)
+    private static double EstimateNextBitrate(double currentBitrate, long currentSize, long targetSize, double minBitrate, double maxBitrate, Sample? under, Sample? over)
     {
-        double nextBitrate;
-
-        if (under != null && over != null)
-        {
-            long sizeSpan = over.FileSize - under.FileSize;
-            nextBitrate = sizeSpan > 0
-                ? under.BitrateKbps
-                  + (targetSize       - under.FileSize)
-                  * (over.BitrateKbps - under.BitrateKbps)
-                  / sizeSpan
-                : (minBitrate + maxBitrate) / 2.0;
-        }
-        else
-        {
-            nextBitrate = currentSize > 0
+        double nextBitrate = (under != null && over != null)
+            ? over.FileSize - under.FileSize > 0
+                ? under.BitrateKbps + (targetSize - under.FileSize) * (over.BitrateKbps - under.BitrateKbps) / (over.FileSize - under.FileSize)
+                : (minBitrate + maxBitrate) / 2.0
+            : currentSize > 0
                 ? currentBitrate            * ((double)targetSize / currentSize)
                 : (minBitrate + maxBitrate) / 2.0;
-        }
 
         nextBitrate = Math.Clamp(nextBitrate, minBitrate, maxBitrate);
-        if (Math.Abs(nextBitrate - currentBitrate) < 1.0)
-        {
-            var midpoint = (minBitrate + maxBitrate) / 2.0;
-            
-            nextBitrate = midpoint;
-        }
-
-        return nextBitrate;
+        
+        return Math.Abs(nextBitrate - currentBitrate) < 1.0 ? (minBitrate + maxBitrate) / 2.0 : nextBitrate;
     }
 
     private static string FormatDuration(double totalSeconds)
     {
-        var seconds   = (int)Math.Max(0.0, totalSeconds);
-        var hours     = seconds        / 3600;
-        var minutes   = seconds % 3600 / 60;
-        var remainder = seconds        % 60;
-
-        if (hours > 0)
-        {
-            return string.Format(CultureInfo.InvariantCulture, "{0}h {1:D2}m {2:D2}s", hours, minutes, remainder);
-        }
-        
-        return minutes > 0 ? string.Format(CultureInfo.InvariantCulture, "{0}m {1:D2}s", minutes, remainder) : $"{remainder}s";
+        var t = TimeSpan.FromSeconds(Math.Max(0.0, totalSeconds));
+        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes:D2}m {t.Seconds:D2}s" : $"{t.Minutes}m {t.Seconds:D2}s";
     }
 
     private static string FormatBytes(long bytes)
@@ -577,7 +506,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         {
             return $"{bytes}B";
         }
-
+        
         var value = (double)bytes;
         var units = new[] { "B", "KB", "MB", "GB", "TB" };
         int index = 0;
@@ -587,16 +516,14 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             value /= 1024.0;
             index++;
         }
-
-        return string.Format(CultureInfo.InvariantCulture, "{0:F2}{1}", value, units[index]);
+        
+        return $"{value:F2}{units[index]}";
     }
 
     private async Task<string> RequireBinaryPathAsync(string name, string missingMessage)
     {
-        var found = await binaryLocatorService.HasBinaryAsync(name);
-        return !found ? throw new InvalidOperationException(missingMessage) :
-            // Return the binary name; on PATH it resolves automatically via ProcessStartInfo.
-            name;
+        var found = await binaryLocatorService.GetBinaryPathAsync(name).ConfigureAwait(false);
+        return found?.FullPath ?? throw new InvalidOperationException(missingMessage);
     }
 
     private static double ElapsedSecondsSince(long startTimestamp) => (double)(Stopwatch.GetTimestamp() - startTimestamp) / Stopwatch.Frequency;
