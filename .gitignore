@@ -8,3 +8,6 @@
 .run/
 bin/
 obj/
+
+Deployment/out/
+Deployment/updater.exe

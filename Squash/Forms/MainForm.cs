@@ -1,3 +1,4 @@
+using Squash.Extensions;
 using Squash.Lib;
 using Squash.Services;
 
@@ -205,7 +206,30 @@ public partial class MainForm : Form
             
             _win32.FlashUntilFocused(this);
 
-            MessageBox.Show(this, $"Final file size: {res.FileSizeBytes}", "Operation complete");
+            if (res.Success)
+            {
+                if (res.Iteration == 0)
+                {
+                    MessageBox.Show(
+                        this,
+                        "The chosen video file is already at or under the target file size.",
+                        "Operation complete",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+                }
+                else
+                {
+                    MessageBox.Show(
+                        this,
+                        $"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
+                        $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).",
+                        "Operation complete",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+                }
+            }
         }
         catch (OperationCanceledException) { }
         finally
