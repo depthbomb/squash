@@ -2,7 +2,8 @@
 
 ## 3.0.0
 
-- Rewritten
+- Complete rewritten in C# running on .NET 10, resulting in a significantly smaller file size and improved performance
+- Now includes an auto-updater that handles downloading and installing the required .NET runtime for you
 
 # 02/19/2026
 
