@@ -1,9 +1,6 @@
 using Squash.Forms;
 using Squash.Services;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
-
-[assembly: DisableRuntimeMarshalling]
 
 namespace Squash;
 
@@ -16,10 +13,13 @@ internal static class Bootstrapper
         serviceCollection.AddHttpClient("Default", c => c.DefaultRequestHeaders.Add("User-Agent", "Squash"));
         serviceCollection.AddSingleton<MainForm>();
         serviceCollection.AddSingleton<BinaryLocatorService>();
+        serviceCollection.AddSingleton<PersistentStateService>();
         serviceCollection.AddSingleton<DownloadService>();
         serviceCollection.AddSingleton<ExtractService>();
         serviceCollection.AddSingleton<EncodeService>();
+        serviceCollection.AddSingleton<Win32Service>();
         serviceCollection.AddTransient<MissingBinariesTaskDialogService>();
+        serviceCollection.AddTransient<FirstRunTaskDialogService>();
         
         var services = serviceCollection.BuildServiceProvider();
 

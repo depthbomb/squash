@@ -5,28 +5,37 @@ namespace Squash.Forms;
 
 public partial class MainForm : Form
 {
-    private bool HasInputFile  => !string.IsNullOrWhiteSpace(c_InputFileTextBox.Text);
-    private bool HasOutputFile => !string.IsNullOrWhiteSpace(c_OutputFileTextBox.Text);
-    
     private CancellationTokenSource? _cts;
     
-    private const string MainButtonInitialText       = "&Squash it!";
-    private const string MainButtonWorkingText       = "&Cancel";
-    private const string StatusStripLabelInitialText = "Waiting";
-    private const string StatusStripLabelWorkingText = "Processing...";
+    private bool HasInputFile  => !string.IsNullOrWhiteSpace(c_InputFileTextBox.Text);
+    private bool HasOutputFile => !string.IsNullOrWhiteSpace(c_OutputFileTextBox.Text);
+
+    private const string DisclaimerKey = "disclaimer-v1";
     
+    private const string MainButtonInitialText = "&Squash it!";
+    private const string MainButtonWorkingText = "&Cancel";
+
+    private readonly PersistentStateService           _persistentState;
     private readonly BinaryLocatorService             _binaryLocator;
     private readonly EncodeService                    _encoder;
+    private readonly Win32Service                     _win32;
+    private readonly FirstRunTaskDialogService        _firstRunTaskDialog;
     private readonly MissingBinariesTaskDialogService _missingBinariesTaskDialog;
 
     private readonly Flag _workingFlag = new(false);
 
-    public MainForm(BinaryLocatorService             binaryLocator,
+    public MainForm(PersistentStateService           persistentState,
+                    BinaryLocatorService             binaryLocator,
                     EncodeService                    encoder,
+                    Win32Service                     win32,
+                    FirstRunTaskDialogService        firstRunTaskDialog,
                     MissingBinariesTaskDialogService missingBinariesTaskDialog)
     {
+        _persistentState           = persistentState;
         _binaryLocator             = binaryLocator;
         _encoder                   = encoder;
+        _win32                     = win32;
+        _firstRunTaskDialog        = firstRunTaskDialog;
         _missingBinariesTaskDialog = missingBinariesTaskDialog;
 
         InitializeComponent();
@@ -42,7 +51,7 @@ public partial class MainForm : Form
         c_InputFileBrowseButton.Click   += C_InputFileBrowseButtonOnClick;
         c_OutputFileBrowseButton.Click  += C_OutputFileBrowseButtonOnClick;
         #endregion
-        
+
         UpdateOutputFileBrowseButtonState();
         UpdateMainButtonState();
     }
@@ -50,6 +59,18 @@ public partial class MainForm : Form
     #region Control Event Handlers
     private async void OnShown(object? sender, EventArgs e)
     {
+        if (!_persistentState.HasCompleted(DisclaimerKey))
+        {
+            var firstRunRes = await _firstRunTaskDialog.ShowDialogAsync(this);
+            if (firstRunRes == TaskDialogButton.Cancel)
+            {
+                Application.Exit();
+                return;
+            }
+
+            await _persistentState.MarkCompletedAsync(DisclaimerKey);
+        }
+        
         var results = await Task.WhenAll(new[]
         {
             _binaryLocator.HasBinaryAsync("ffmpeg"),
@@ -59,10 +80,10 @@ public partial class MainForm : Form
         var allTrue = results.All(r => r);
         if (!allTrue)
         {
-            var res = await _missingBinariesTaskDialog.ShowDialogAsync(this);
-            if (res.Text == "No" || res == TaskDialogButton.Cancel)
+            var missingBinariesRes = await _missingBinariesTaskDialog.ShowDialogAsync(this);
+            if (missingBinariesRes.Text == "No" || missingBinariesRes == TaskDialogButton.Cancel)
             {
-                Environment.Exit(0);
+                Application.Exit();
             }
         }
     }
@@ -143,13 +164,15 @@ public partial class MainForm : Form
             _cts?.Cancel();
             return;
         }
+        
+        _win32.PreventSleep();
+        _win32.SetTaskbarIndeterminate(this);
 
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
 
-        c_MainButton.Text       = MainButtonWorkingText;
-        c_StatusStripLabel.Text = StatusStripLabelWorkingText;
+        c_MainButton.Text = MainButtonWorkingText;
 
         try
         {
@@ -166,11 +189,21 @@ public partial class MainForm : Form
                 c_QualityPresetComboBox.SelectedIndex + 1,
                 p =>
                 {
-                    c_StatusStripLabel.Text        = p.TitleText;
-                    c_StatusStripProgressBar.Value = p.ProgressPercent;
+                    Text = p.TitleText;
+
+                    if (p.ProgressPercent >= 100)
+                    {
+                        _win32.SetTaskbarIndeterminate(this);
+                    }
+                    else
+                    {
+                        _win32.SetTaskbarProgress(this, p.ProgressPercent, 100);
+                    }
                 },
                 _cts.Token
             );
+            
+            _win32.FlashUntilFocused(this);
 
             MessageBox.Show(this, $"Final file size: {res.FileSizeBytes}", "Operation complete");
         }
@@ -182,6 +215,9 @@ public partial class MainForm : Form
             ResetControls();
             
             _workingFlag.Reset();
+            
+            _win32.AllowSleep();
+            _win32.ClearTaskbarProgress(this);
         }
     }
     #endregion
@@ -207,9 +243,8 @@ public partial class MainForm : Form
 
     private void ResetControls()
     {
-        c_MainButton.Text              = MainButtonInitialText;
-        c_StatusStripLabel.Text        = StatusStripLabelInitialText;
-        c_StatusStripProgressBar.Value = 0;
+        Text              = "Squash";
+        c_MainButton.Text = MainButtonInitialText;
     }
 
     private bool IsVideoFile(string path)

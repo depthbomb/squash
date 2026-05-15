@@ -379,6 +379,8 @@ public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
 
     public static FilePath TempDir() => new(Path.GetTempPath());
     public static FilePath TempFile() => new(Path.GetTempFileName());
+    
+    public static FilePath FromSpecialFolder(Environment.SpecialFolder specialFolder) => new(Environment.GetFolderPath(specialFolder));
 
     public static bool operator ==(FilePath? a, FilePath? b) => a?.Equals(b) ?? b is null;
     public static bool operator !=(FilePath? a, FilePath? b) => !(a == b);

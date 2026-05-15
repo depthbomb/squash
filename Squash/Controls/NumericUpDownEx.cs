@@ -6,11 +6,11 @@ public class NumericUpDownEx : NumericUpDown
 {
     [Category("Appearance")]
     [DefaultValue("")]
-    public string Prefix { get; set; } = "";
+    public string Prefix { get; set; } = string.Empty;
 
     [Category("Appearance")]
     [DefaultValue("")]
-    public string Suffix { get; set; } = "";
+    public string Suffix { get; set; } = string.Empty;
 
     protected override void UpdateEditText()
     {

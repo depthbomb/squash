@@ -47,14 +47,10 @@ partial class MainForm
         c_MaxIterationsInput     = new Squash.Controls.NumericUpDownEx();
         label1                   = new System.Windows.Forms.Label();
         label2                   = new System.Windows.Forms.Label();
-        c_StatusStrip            = new System.Windows.Forms.StatusStrip();
-        c_StatusStripProgressBar = new System.Windows.Forms.ToolStripProgressBar();
-        c_StatusStripLabel       = new System.Windows.Forms.ToolStripStatusLabel();
         _controlsTable.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)c_TargetSizeInput).BeginInit();
         ((System.ComponentModel.ISupportInitialize)c_ToleranceInput).BeginInit();
         ((System.ComponentModel.ISupportInitialize)c_MaxIterationsInput).BeginInit();
-        c_StatusStrip.SuspendLayout();
         SuspendLayout();
         // 
         // c_MainButton
@@ -63,7 +59,7 @@ partial class MainForm
         c_MainButton.Enabled                 = false;
         c_MainButton.Location                = new System.Drawing.Point(15, 205);
         c_MainButton.Name                    = "c_MainButton";
-        c_MainButton.Size                    = new System.Drawing.Size(573, 32);
+        c_MainButton.Size                    = new System.Drawing.Size(573, 24);
         c_MainButton.TabIndex                = 7;
         c_MainButton.Text                    = "&Squash it!";
         c_MainButton.UseVisualStyleBackColor = true;
@@ -272,42 +268,12 @@ partial class MainForm
         label2.Text      = "Input file";
         label2.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
         // 
-        // c_StatusStrip
-        // 
-        c_StatusStrip.GripMargin = new System.Windows.Forms.Padding(0);
-        c_StatusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { c_StatusStripProgressBar, c_StatusStripLabel });
-        c_StatusStrip.Location   = new System.Drawing.Point(0, 243);
-        c_StatusStrip.Name       = "c_StatusStrip";
-        c_StatusStrip.Size       = new System.Drawing.Size(597, 22);
-        c_StatusStrip.SizingGrip = false;
-        c_StatusStrip.TabIndex   = 9;
-        // 
-        // c_StatusStripProgressBar
-        // 
-        c_StatusStripProgressBar.Alignment             = System.Windows.Forms.ToolStripItemAlignment.Right;
-        c_StatusStripProgressBar.Margin                = new System.Windows.Forms.Padding(1, 3, 0, 3);
-        c_StatusStripProgressBar.MarqueeAnimationSpeed = 20;
-        c_StatusStripProgressBar.Name                  = "c_StatusStripProgressBar";
-        c_StatusStripProgressBar.Overflow              = System.Windows.Forms.ToolStripItemOverflow.Never;
-        c_StatusStripProgressBar.Size                  = new System.Drawing.Size(100, 16);
-        c_StatusStripProgressBar.Step                  = 1;
-        // 
-        // c_StatusStripLabel
-        // 
-        c_StatusStripLabel.Font       = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)0));
-        c_StatusStripLabel.ForeColor  = System.Drawing.SystemColors.GrayText;
-        c_StatusStripLabel.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-        c_StatusStripLabel.Name       = "c_StatusStripLabel";
-        c_StatusStripLabel.Size       = new System.Drawing.Size(49, 17);
-        c_StatusStripLabel.Text       = "Waiting";
-        // 
         // MainForm
         // 
         AllowDrop           = true;
         AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
         AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;
-        ClientSize          = new System.Drawing.Size(597, 265);
-        Controls.Add(c_StatusStrip);
+        ClientSize          = new System.Drawing.Size(597, 235);
         Controls.Add(_controlsTable);
         Controls.Add(c_MainButton);
         FormBorderStyle       =  System.Windows.Forms.FormBorderStyle.FixedSingle;
@@ -324,17 +290,8 @@ partial class MainForm
         ((System.ComponentModel.ISupportInitialize)c_TargetSizeInput).EndInit();
         ((System.ComponentModel.ISupportInitialize)c_ToleranceInput).EndInit();
         ((System.ComponentModel.ISupportInitialize)c_MaxIterationsInput).EndInit();
-        c_StatusStrip.ResumeLayout(false);
-        c_StatusStrip.PerformLayout();
         ResumeLayout(false);
-        PerformLayout();
     }
-
-    private System.Windows.Forms.ToolStripProgressBar c_StatusStripProgressBar;
-
-    private System.Windows.Forms.ToolStripStatusLabel c_StatusStripLabel;
-
-    private System.Windows.Forms.StatusStrip c_StatusStrip;
 
     private System.Windows.Forms.Button c_MainButton;
     #endregion

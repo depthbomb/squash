@@ -10,7 +10,7 @@ public class MissingBinariesTaskDialogService
     private readonly ExtractService  _extractor;
 
     public MissingBinariesTaskDialogService(DownloadService downloader,
-                                            ExtractService extractor)
+                                            ExtractService  extractor)
     {
         _downloader = downloader;
         _extractor  = extractor;
@@ -18,7 +18,7 @@ public class MissingBinariesTaskDialogService
 
     public async Task<TaskDialogButton> ShowDialogAsync(IWin32Window owner)
     {
-        #region Control definitions
+        #region Control
         var yesButton    = new TaskDialogCommandLinkButton("Yes", "Download the required binaries for me", allowCloseDialog: false);
         var noButton     = new TaskDialogCommandLinkButton("No", "Close Squash");
         var cancelButton = TaskDialogButton.Cancel;
@@ -31,7 +31,7 @@ public class MissingBinariesTaskDialogService
         };
         #endregion
         
-        #region Page definitions
+        #region Page
         var initialPage = new TaskDialogPage
         {
             Caption = "Squash",
