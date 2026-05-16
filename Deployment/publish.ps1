@@ -1,4 +1,5 @@
 param(
+	[string]$Version,
     [bool]$UpdateUpdater = $false
 )
 
@@ -41,10 +42,11 @@ Write-Host "[3/4] Generating release manifest..." -ForegroundColor Yellow
 Push-Location $DeploymentPath
 try {
     .\stamper.exe manifest `
+		--version $Version `
         --updater updater.exe `
         --package out/app-package.zip `
         --installer out/squash-setup.exe `
-        --output out/release-manifest.json `
+        --output out `
         --updater-update-required $UpdateUpdater
 } catch {
     Write-Error "Manifest generation failed: $_"
