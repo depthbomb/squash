@@ -4,15 +4,13 @@ namespace Squash.Services;
 
 public class EncodeService(BinaryLocatorService binaryLocatorService)
 {
-    public record EncodeResult(
-        bool     Success,
-        FilePath FilePath,
-        long     FileSizeBytes,
-        long     TargetSizeBytes,
-        int      Iteration,
-        double   VideoBitrateKbps,
-        double   ElapsedSeconds
-    );
+    public record EncodeResult(bool     Success,
+                               FilePath FilePath,
+                               long     FileSizeBytes,
+                               long     TargetSizeBytes,
+                               int      Iteration,
+                               double   VideoBitrateKbps,
+                               double   ElapsedSeconds);
 
     public record ProgressUpdate(int ProgressPercent, string TitleText);
 
@@ -173,7 +171,6 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
             var finalSize    = lastEncodedSize    ?? tempOutput.FileInfo().Length;
             var finalBitrate = lastEncodedBitrate ?? currentBitrate;
-
             if (finalSize <= targetSizeBytes)
             {
                 tempOutput.Rename(outputFile);
@@ -187,12 +184,12 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                     ElapsedSeconds: ElapsedSecondsSince(startedAt));
             }
 
-            if (bestOver != null)
-            {
-                throw new InvalidOperationException($"Could not reach target after {maxIterations} iterations. Closest over-target result was {bestOver.FileSize.ToFileSizeString()} at {bestOver.BitrateKbps:F0} kbps.");
-            }
+            UnableToReachTargetSizeException.ThrowIf(
+                bestOver != null,
+                $"Could not reach target after {maxIterations} iterations. Closest over-target result was {bestOver!.FileSize.ToFileSizeString()} at {bestOver.BitrateKbps:F0} kbps."
+            );
 
-            throw new InvalidOperationException($"Could not reach target after {maxIterations} iterations. Final result was {finalSize.ToFileSizeString()}.");
+            throw new UnableToReachTargetSizeException($"Could not reach target after {maxIterations} iterations. Final result was {finalSize.ToFileSizeString()}.");
         }
         finally
         {
@@ -244,18 +241,17 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         return new VideoInfo(duration, bitrateKbps);
     }
 
-    private static async Task EncodeVideoAsync(
-        string            ffmpegPath,
-        FilePath          inputFile,
-        FilePath          outputFile,
-        double            videoBitrate,
-        int               audioBitrate,
-        int               qualityPreset,
-        double            duration,
-        int               iteration,
-        int               maxIterations,
-        ProgressListener  progressListener,
-        CancellationToken cancellationToken)
+    private static async Task EncodeVideoAsync(string            ffmpegPath,
+                                               FilePath          inputFile,
+                                               FilePath          outputFile,
+                                               double            videoBitrate,
+                                               int               audioBitrate,
+                                               int               qualityPreset,
+                                               double            duration,
+                                               int               iteration,
+                                               int               maxIterations,
+                                               ProgressListener  progressListener,
+                                               CancellationToken cancellationToken)
     {
         var args = new List<string>
         {
@@ -384,7 +380,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         _ => throw new ArgumentException($"Unexpected quality preset: {qualityPreset}")
     };
 
-    private static int ComputePercent(IReadOnlyDictionary<string, string> progress, double duration)
+    private static int ComputePercent(Dictionary<string, string> progress, double duration)
     {
         if (duration <= 0.0 || !progress.TryGetValue("out_time_ms", out var raw) || !long.TryParse(raw, out var micros))
         {
@@ -394,7 +390,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         return (int)Math.Clamp((micros / 1_000_000.0) / duration * 100.0, 0.0, 100.0);
     }
 
-    private static string BuildProgressStatus(IReadOnlyDictionary<string, string> progress, double duration)
+    private static string BuildProgressStatus(Dictionary<string, string> progress, double duration)
     {
         progress.TryGetValue("out_time_ms", out var outTimeMicros);
         progress.TryGetValue("speed", out var speed);
@@ -402,7 +398,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         progress.TryGetValue("bitrate", out var bitrate);
 
         var speedMultiplier = ParseSpeedMultiplier(speed);
-        var parts = new List<string>();
+        var parts           = new List<string>();
         if (!string.IsNullOrWhiteSpace(speed))
         {
             parts.Add($"Speed {speed.Trim()}");
@@ -462,7 +458,13 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         return maxAudio >= defaultAudioBitrate ? defaultAudioBitrate : (maxAudio <= 0.0 ? MinAudioBitrate : Math.Max(MinAudioBitrate, (int)maxAudio));
     }
 
-    private static double EstimateNextBitrate(double currentBitrate, long currentSize, long targetSize, double minBitrate, double maxBitrate, Sample? under, Sample? over)
+    private static double EstimateNextBitrate(double  currentBitrate,
+                                              long    currentSize,
+                                              long    targetSize,
+                                              double  minBitrate,
+                                              double  maxBitrate,
+                                              Sample? under,
+                                              Sample? over)
     {
         double nextBitrate = (under != null && over != null)
             ? over.FileSize - under.FileSize > 0
@@ -473,7 +475,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                 : (minBitrate + maxBitrate) / 2.0;
 
         nextBitrate = Math.Clamp(nextBitrate, minBitrate, maxBitrate);
-        
+
         return Math.Abs(nextBitrate - currentBitrate) < 1.0 ? (minBitrate + maxBitrate) / 2.0 : nextBitrate;
     }
 

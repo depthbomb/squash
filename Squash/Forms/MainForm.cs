@@ -205,33 +205,35 @@ public partial class MainForm : Form
 
             if (res.Success)
             {
-                if (res.Iteration == 0)
-                {
-                    MessageBox.Show(
-                        this,
-                        "The chosen video file is already at or under the target file size.",
-                        "Operation complete",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information
-                    );
-                }
-                else
-                {
-                    MessageBox.Show(
-                        this,
-                        $"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
-                        $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).",
-                        "Operation complete",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information
-                    );
-                }
+                MessageBox.Show(
+                    this,
+                    $"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
+                    $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).",
+                    "Operation complete",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+            else
+            {
+                MessageBox.Show(
+                    this,
+                    $"Could not reach target size within tolerance after {res.Iteration} iteration(s). Saved best " +
+                    $"result of {res.FileSizeBytes.ToFileSizeString()} (target was "                                +
+                    $"{res.TargetSizeBytes.ToFileSizeString()}) in {res.ElapsedSeconds.ToDurationString()}.",
+                    "Operation complete",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
             }
         }
-        catch (OperationCanceledException) { }
-        catch (VideoSizeBelowTargetSizeException ex)
+        catch (OperationCanceledException)
         {
-            MessageBox.Show(ex.Message, "Operation complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            /*Ignored*/
+        }
+        catch (Exception ex) when (ex is UnableToReachTargetSizeException or VideoSizeBelowTargetSizeException)
+        {
+            MessageBox.Show(ex.Message, "Operation complete", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         finally
         {
