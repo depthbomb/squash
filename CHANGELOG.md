@@ -1,3 +1,10 @@
+# 05/16/2026
+
+## 3.1.0
+
+- Improved messages when an operation has completed, including failed operations
+- Added an about window
+
 # 05/15/2026
 
 ## 3.0.1
