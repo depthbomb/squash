@@ -1,5 +1,4 @@
-﻿using System.Text;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Squash.Extensions;

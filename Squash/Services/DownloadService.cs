@@ -1,5 +1,3 @@
-using Squash.Lib;
-
 namespace Squash.Services;
 
 public class DownloadService

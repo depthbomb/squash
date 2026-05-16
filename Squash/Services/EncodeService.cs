@@ -1,6 +1,3 @@
-using Squash.Lib;
-using System.Text;
-using System.Diagnostics;
 using System.Globalization;
 
 namespace Squash.Services;
@@ -111,7 +108,6 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         try
         {
             int iteration = 0;
-
             while (iteration < maxIterations)
             {
                 ct.ThrowIfCancellationRequested();
@@ -205,10 +201,10 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
             if (bestOver != null)
             {
-                throw new InvalidOperationException($"Could not reach target after {maxIterations} iterations. Closest over-target result was {FormatBytes(bestOver.FileSize)} at {bestOver.BitrateKbps:F0} kbps.");
+                throw new InvalidOperationException($"Could not reach target after {maxIterations} iterations. Closest over-target result was {bestOver.FileSize.ToFileSizeString()} at {bestOver.BitrateKbps:F0} kbps.");
             }
 
-            throw new InvalidOperationException($"Could not reach target after {maxIterations} iterations. Final result was {FormatBytes(finalSize)}.");
+            throw new InvalidOperationException($"Could not reach target after {maxIterations} iterations. Final result was {finalSize.ToFileSizeString()}.");
         }
         finally
         {
@@ -338,11 +334,10 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         progressListener(new ProgressUpdate(100, $"Iteration {iteration}/{maxIterations} complete"));
     }
 
-    private static async Task<ProcessResult> ExecuteProcessAsync(
-        string              executable,
-        List<string>        arguments,
-        Func<string, Task>? onStdoutLine,
-        CancellationToken   ct
+    private static async Task<ProcessResult> ExecuteProcessAsync(string              executable,
+                                                                 List<string>        arguments,
+                                                                 Func<string, Task>? onStdoutLine,
+                                                                 CancellationToken   ct
     )
     {
         var psi = new ProcessStartInfo(executable)
@@ -387,7 +382,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                     proc.Kill(entireProcessTree: true);
                     await proc.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
                 }
-                catch {}
+                catch { /*Ignored*/ }
             }
         }
     }
@@ -498,26 +493,6 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
     {
         var t = TimeSpan.FromSeconds(Math.Max(0.0, totalSeconds));
         return t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes:D2}m {t.Seconds:D2}s" : $"{t.Minutes}m {t.Seconds:D2}s";
-    }
-
-    private static string FormatBytes(long bytes)
-    {
-        if (bytes < 1024)
-        {
-            return $"{bytes}B";
-        }
-        
-        var value = (double)bytes;
-        var units = new[] { "B", "KB", "MB", "GB", "TB" };
-        int index = 0;
-
-        while (value >= 1024.0 && index < units.Length - 1)
-        {
-            value /= 1024.0;
-            index++;
-        }
-        
-        return $"{value:F2}{units[index]}";
     }
 
     private async Task<string> RequireBinaryPathAsync(string name, string missingMessage)

@@ -1,6 +1,4 @@
-﻿using Squash.Lib;
-
-namespace Squash.Services;
+﻿namespace Squash.Services;
 
 public class MissingBinariesTaskDialogService
 {
