@@ -14,12 +14,13 @@
         "processName": "Squash",
         "keepLastVersions": 3,
         "extractionLayout": "auto",
-        "allowFreshInstall": true
+        "allowFreshInstall": true,
+		"compressFiles": true
     },
     "requiredRuntimes": [
         {
             "name": "Microsoft.WindowsDesktop.App",
-            "version": "10.0.0",
+            "version": "10.0.8",
             "type": "windowsdesktop-runtime"
         }
     ],
