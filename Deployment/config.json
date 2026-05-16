@@ -1,32 +1,32 @@
 {
-  "applicationName": "Squash",
-  "initialVersion": "3.0.0",
-  "launchExecutable": "Squash.exe",
-  "windowIconPath": "../Assets/icon.ico",
-  "appearance": {
-    "bannerBackgroundColor": "#f78c32"
-  },
-  "text": {
-    "windowTitle": "{ApplicationName} Updater"
-  },
-  "installation": {
-    "requireIntegrityVerification": true,
-    "processName": "Squash",
-    "keepLastVersions": 3,
-    "extractionLayout": "auto",
-    "allowFreshInstall": true
-  },
-  "requiredRuntimes": [
-    {
-      "name": "Microsoft.WindowsDesktop.App",
-      "version": "10.0.0",
-      "type": "windowsdesktop-runtime"
+    "applicationName": "Squash",
+    "initialVersion": "3.0.0",
+    "launchExecutable": "Squash.exe",
+    "windowIconPath": "../Assets/icon.ico",
+    "appearance": {
+        "bannerBackgroundColor": "#f78c32"
+    },
+    "text": {
+        "windowTitle": "{ApplicationName} Updater"
+    },
+    "installation": {
+        "requireIntegrityVerification": true,
+        "processName": "Squash",
+        "keepLastVersions": 3,
+        "extractionLayout": "auto",
+        "allowFreshInstall": true
+    },
+    "requiredRuntimes": [
+        {
+            "name": "Microsoft.WindowsDesktop.App",
+            "version": "10.0.0",
+            "type": "windowsdesktop-runtime"
+        }
+    ],
+    "updateSource": {
+        "type": "github",
+        "repository": "depthbomb/squash",
+        "assetNamePattern": "^app\\-package\\.zip$",
+        "includePrerelease": false
     }
-  ],
-  "updateSource": {
-    "type": "github",
-    "repository": "depthbomb/squash",
-    "assetNamePattern": "^squash\\-payload\\.zip$",
-    "includePrerelease": false
-  }
 }
