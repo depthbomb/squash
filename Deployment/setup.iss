@@ -38,7 +38,7 @@ LicenseFile=..\LICENSE
 PrivilegesRequired=lowest
 OutputDir=.\out
 OutputBaseFilename=squash-setup
-SetupIconFile=..\Assets\icon.ico
+SetupIconFile=..\resources\icon.ico
 SolidCompression=yes
 WizardStyle=modern windows11
 

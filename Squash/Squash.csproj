@@ -7,7 +7,7 @@
         <Nullable>enable</Nullable>
         <UseWindowsForms>true</UseWindowsForms>
         <ImplicitUsings>enable</ImplicitUsings>
-        <ApplicationIcon>..\Assets\icon.ico</ApplicationIcon>
+        <ApplicationIcon>..\resources\icon.ico</ApplicationIcon>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         
         <Version>3.0.1.0</Version>
@@ -29,7 +29,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <None Include="..\Assets\icon.ico">
+      <None Include="..\resources\icon.ico">
         <Link>icon.ico</Link>
       </None>
     </ItemGroup>
@@ -45,6 +45,20 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Squash.Lib\Squash.Lib.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Update="Forms\AboutForm.cs">
+        <SubType>Form</SubType>
+      </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="Resources\7za.*">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+            <TargetPath>%(Filename)%(Extension)</TargetPath>
+        </None>
     </ItemGroup>
 
 </Project>

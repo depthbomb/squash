@@ -1,6 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-
-namespace Squash.Exceptions;
+﻿namespace Squash.Exceptions;
 
 [Serializable]
 public sealed class MissingSevenZipBinaryException : Exception

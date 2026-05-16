@@ -47,10 +47,13 @@ partial class MainForm
         c_MaxIterationsInput     = new Squash.Controls.NumericUpDownEx();
         label1                   = new System.Windows.Forms.Label();
         label2                   = new System.Windows.Forms.Label();
+        c_StatusStrip            = new System.Windows.Forms.StatusStrip();
+        c_StatusStripAboutLink   = new System.Windows.Forms.ToolStripStatusLabel();
         _controlsTable.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)c_TargetSizeInput).BeginInit();
         ((System.ComponentModel.ISupportInitialize)c_ToleranceInput).BeginInit();
         ((System.ComponentModel.ISupportInitialize)c_MaxIterationsInput).BeginInit();
+        c_StatusStrip.SuspendLayout();
         SuspendLayout();
         // 
         // c_MainButton
@@ -268,12 +271,32 @@ partial class MainForm
         label2.Text      = "Input file";
         label2.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
         // 
+        // c_StatusStrip
+        // 
+        c_StatusStrip.GripMargin = new System.Windows.Forms.Padding(0);
+        c_StatusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { c_StatusStripAboutLink });
+        c_StatusStrip.Location   = new System.Drawing.Point(0, 236);
+        c_StatusStrip.Name       = "c_StatusStrip";
+        c_StatusStrip.Size       = new System.Drawing.Size(553, 22);
+        c_StatusStrip.SizingGrip = false;
+        c_StatusStrip.TabIndex   = 9;
+        // 
+        // c_StatusStripAboutLink
+        // 
+        c_StatusStripAboutLink.IsLink       = true;
+        c_StatusStripAboutLink.LinkBehavior = System.Windows.Forms.LinkBehavior.HoverUnderline;
+        c_StatusStripAboutLink.Name         = "c_StatusStripAboutLink";
+        c_StatusStripAboutLink.Size         = new System.Drawing.Size(40, 17);
+        c_StatusStripAboutLink.Text         = "About";
+        c_StatusStripAboutLink.TextAlign    = System.Drawing.ContentAlignment.MiddleLeft;
+        // 
         // MainForm
         // 
         AllowDrop           = true;
         AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
         AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;
-        ClientSize          = new System.Drawing.Size(553, 236);
+        ClientSize          = new System.Drawing.Size(553, 258);
+        Controls.Add(c_StatusStrip);
         Controls.Add(_controlsTable);
         Controls.Add(c_MainButton);
         FormBorderStyle       =  System.Windows.Forms.FormBorderStyle.FixedSingle;
@@ -290,8 +313,15 @@ partial class MainForm
         ((System.ComponentModel.ISupportInitialize)c_TargetSizeInput).EndInit();
         ((System.ComponentModel.ISupportInitialize)c_ToleranceInput).EndInit();
         ((System.ComponentModel.ISupportInitialize)c_MaxIterationsInput).EndInit();
+        c_StatusStrip.ResumeLayout(false);
+        c_StatusStrip.PerformLayout();
         ResumeLayout(false);
+        PerformLayout();
     }
+
+    private System.Windows.Forms.ToolStripStatusLabel c_StatusStripAboutLink;
+
+    private System.Windows.Forms.StatusStrip c_StatusStrip;
 
     private System.Windows.Forms.Button c_MainButton;
     #endregion

@@ -1,5 +1,3 @@
-using Squash.Services;
-
 namespace Squash.Forms;
 
 public partial class MainForm : Form
@@ -49,6 +47,7 @@ public partial class MainForm : Form
         c_MainButton.Click              += C_MainButtonOnClick;
         c_InputFileBrowseButton.Click   += C_InputFileBrowseButtonOnClick;
         c_OutputFileBrowseButton.Click  += C_OutputFileBrowseButtonOnClick;
+        c_StatusStripAboutLink.Click += C_StatusStripAboutLinkOnClick;
         #endregion
 
         UpdateOutputFileBrowseButtonState();
@@ -244,6 +243,14 @@ public partial class MainForm : Form
             
             _win32.AllowSleep();
             _win32.ClearTaskbarProgress(this);
+        }
+    }
+
+    private async void C_StatusStripAboutLinkOnClick(object? sender, EventArgs e)
+    {
+        using (var aboutForm = new AboutForm())
+        {
+            await aboutForm.ShowDialogAsync(this);
         }
     }
     #endregion

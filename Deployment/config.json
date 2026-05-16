@@ -2,7 +2,7 @@
     "applicationName": "Squash",
     "initialVersion": "3.0.0",
     "launchExecutable": "Squash.exe",
-    "windowIconPath": "../Assets/icon.ico",
+    "windowIconPath": "../Squash/Resources/icon.ico",
     "appearance": {
         "bannerBackgroundColor": "#f78c32"
     },
@@ -15,7 +15,7 @@
         "keepLastVersions": 3,
         "extractionLayout": "auto",
         "allowFreshInstall": true,
-		"compressFiles": true
+        "compressFiles": true
     },
     "requiredRuntimes": [
         {

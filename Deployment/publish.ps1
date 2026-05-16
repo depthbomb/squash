@@ -5,7 +5,6 @@ param(
 $RootPath = Resolve-Path "$PSScriptRoot\.."
 $DeploymentPath = Join-Path $RootPath "Deployment"
 $SquashPublishPath = Join-Path $RootPath "Squash\bin\Publish"
-$ExtraPath = Join-Path $DeploymentPath "extra"
 $OutPath = Join-Path $DeploymentPath "out"
 $ZipFile = Join-Path $OutPath "app-package.zip"
 
@@ -23,9 +22,6 @@ $TempPayload = Join-Path $env:TEMP "SquashPayload_$(Get-Random)"
 New-Item -ItemType Directory -Path $TempPayload | Out-Null
 Write-Host "  Copying files to temporary staging area..." -ForegroundColor Gray
 Copy-Item -Path "$SquashPublishPath\*" -Destination $TempPayload -Recurse
-if (Test-Path $ExtraPath) {
-    Copy-Item -Path "$ExtraPath\*" -Destination $TempPayload -Recurse
-}
 Write-Host "  Compressing files..." -ForegroundColor Gray
 Compress-Archive -Path "$TempPayload\*" -DestinationPath $ZipFile
 Remove-Item $TempPayload -Recurse -Force
