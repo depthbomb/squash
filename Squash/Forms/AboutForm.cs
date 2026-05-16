@@ -6,6 +6,7 @@ public partial class AboutForm : Form
     {
         InitializeComponent();
 
+        c_HeaderLabel.Text             = $"Squash {Application.ProductVersion}";
         c_HostOsLabel.Text             = $"Operating System: {RuntimeInformation.OSDescription}";
         c_HostArchitectureLabel.Text   = $"Architecture: {RuntimeInformation.OSArchitecture}";
         c_RuntimeDescriptionLabel.Text = $"Description: {RuntimeInformation.FrameworkDescription}";
