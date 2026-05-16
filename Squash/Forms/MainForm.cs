@@ -257,10 +257,23 @@ public partial class MainForm : Form
 
     private void SetControlsEnabledState(bool enabled)
     {
-        Controls.OfType<Control>()
-                .Where(c => c.Tag as string == "toggleable")
-                .ToList()
-                .ForEach(c => c.Enabled = enabled);
+        SetControlsEnabledStateRecursive(this, enabled);
+    }
+
+    private void SetControlsEnabledStateRecursive(Control parent, bool enabled)
+    {
+        foreach (Control control in parent.Controls)
+        {
+            if (control.Tag as string == "toggleable")
+            {
+                control.Enabled = enabled;
+            }
+
+            if (control.HasChildren)
+            {
+                SetControlsEnabledStateRecursive(control, enabled);
+            }
+        }
     }
 
     private void ResetControls()

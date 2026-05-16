@@ -1,4 +1,4 @@
-﻿using Squash.Controls;
+using Squash.Controls;
 
 namespace Squash.Forms;
 
@@ -138,7 +138,7 @@ partial class MainForm
         c_OutputFileBrowseButton.Name                    = "c_OutputFileBrowseButton";
         c_OutputFileBrowseButton.Size                    = new System.Drawing.Size(95, 24);
         c_OutputFileBrowseButton.TabIndex                = 5;
-        c_OutputFileBrowseButton.Tag                     = "";
+        c_OutputFileBrowseButton.Tag                     = "toggleable";
         c_OutputFileBrowseButton.Text                    = "Browse...";
         c_OutputFileBrowseButton.UseVisualStyleBackColor = true;
         // 
