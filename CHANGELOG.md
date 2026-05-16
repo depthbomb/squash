@@ -1,3 +1,10 @@
+# 05/15/2026
+
+## 3.0.1
+
+- Fixed controls staying enabled during encoding
+- Minor optimizations
+
 # 05/14/2026
 
 ## 3.0.0
