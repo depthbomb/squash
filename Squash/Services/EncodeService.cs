@@ -64,17 +64,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         var toleranceBytes   = targetSizeBytes * (tolerancePercent / 100.0);
         var currentVideoSize = inputFile.FileInfo().Length;
 
-        if (currentVideoSize <= targetSizeBytes)
-        {
-            return new EncodeResult(
-                Success: true,
-                FilePath: inputFile,
-                FileSizeBytes: currentVideoSize,
-                TargetSizeBytes: targetSizeBytes,
-                Iteration: 0,
-                VideoBitrateKbps: 0.0,
-                ElapsedSeconds: ElapsedSecondsSince(startedAt));
-        }
+        VideoSizeBelowTargetSizeException.ThrowIf(currentVideoSize <= targetSizeBytes, "Video file size is at or below target file size.");
 
         var (duration, videoBitrateKbps) = await GetVideoInfoAsync(ffprobePath, inputFile, ct).ConfigureAwait(false);
         if (duration <= 0.0)
@@ -82,7 +72,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             throw new InvalidOperationException("Input video duration is invalid or unavailable.");
         }
 
-        var sourceBitrate = videoBitrateKbps ?? (currentVideoSize * 8.0) / duration / 1_000.0;
+        var sourceBitrate = videoBitrateKbps ?? currentVideoSize * 8.0 / duration / 1_000.0;
 
         int    audioBitrate  = SelectAudioBitrate(duration, targetSizeBytes, DefaultAudioBitrate);
         double targetBitrate = CalculateTargetBitrate(duration, targetSizeBytes, audioBitrate);
@@ -114,9 +104,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                 
                 iteration++;
 
-                progressListener(new ProgressUpdate(
-                    0,
-                    $"Iteration {iteration}/{maxIterations} at {currentBitrate:F0} kbps"));
+                progressListener(new ProgressUpdate(0, $"Iteration {iteration}/{maxIterations} at {currentBitrate:F0} kbps"));
 
                 await EncodeVideoAsync(
                     ffmpegPath: ffmpegPath,

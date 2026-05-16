@@ -1,5 +1,3 @@
-using Squash.Exceptions;
-
 namespace Squash.Services;
 
 public class ExtractService(BinaryLocatorService binaryLocator)
@@ -50,7 +48,7 @@ public class ExtractService(BinaryLocatorService binaryLocator)
 
                     await proc.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
                 }
-                catch { }
+                catch { /*Ignored*/ }
             }
         }
     }

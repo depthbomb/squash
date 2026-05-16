@@ -3,15 +3,13 @@
 namespace Squash.Exceptions;
 
 [Serializable]
-public sealed class MissingSevenZipBinaryException : Exception
+public sealed class VideoSizeBelowTargetSizeException : Exception
 {
-    public MissingSevenZipBinaryException() { }
+    public VideoSizeBelowTargetSizeException() { }
 
-    public MissingSevenZipBinaryException(string? message)
-        : base(message) { }
+    public VideoSizeBelowTargetSizeException(string? message) : base(message) { }
 
-    public MissingSevenZipBinaryException(string? message, Exception inner)
-        : base(message, inner) { }
+    public VideoSizeBelowTargetSizeException(string? message, Exception inner) : base(message, inner) { }
 
     public static void ThrowIf(
         [DoesNotReturnIf(true)] bool predicate,
@@ -38,16 +36,13 @@ public sealed class MissingSevenZipBinaryException : Exception
     }
 
     [DoesNotReturn]
-    public static void Throw() =>
-        throw new MissingSevenZipBinaryException();
+    public static void Throw() => throw new VideoSizeBelowTargetSizeException();
 
     [DoesNotReturn]
-    public static void Throw(string? message) =>
-        throw new MissingSevenZipBinaryException(message);
+    public static void Throw(string? message) => throw new VideoSizeBelowTargetSizeException(message);
 
     [DoesNotReturn]
-    public static void Throw(string? message, Exception inner) =>
-        throw new MissingSevenZipBinaryException(message, inner);
+    public static void Throw(string? message, Exception inner) => throw new VideoSizeBelowTargetSizeException(message, inner);
 }
 
 

@@ -1,15 +1,14 @@
 ﻿using System.Security.Cryptography;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Squash.Extensions;
 
 public static class StringExtensions
 {
-    extension(string str)
+    extension(string value)
     {
         public string CreateGuidFrom([StringSyntax(StringSyntaxAttribute.GuidFormat)] string? format)
         {
-            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(str));
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
             
             Span<byte> guidBytes = stackalloc byte[16];
             

@@ -2,16 +2,16 @@
 
 public static class DoubleExtensions
 {
-    extension(double dbl)
+    extension(double value)
     {
         public string ToDurationString()
         {
-            if (dbl < 0)
+            if (value < 0)
             {
-                dbl = 0;
+                value = 0;
             }
             
-            var ts      = TimeSpan.FromSeconds(dbl);
+            var ts      = TimeSpan.FromSeconds(value);
             var hours   = (int)ts.TotalHours;
             var minutes = ts.Minutes;
             var seconds = ts.Seconds;

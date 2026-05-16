@@ -176,7 +176,7 @@ public partial class MainForm : Form
         try
         {
             _workingFlag.SetTrue();
-            
+
             SetControlsEnabledState(false);
 
             var res = await _encoder.ResizeVideoToTargetAsync(
@@ -201,7 +201,7 @@ public partial class MainForm : Form
                 },
                 _cts.Token
             );
-            
+
             _win32.FlashUntilFocused(this);
 
             if (res.Success)
@@ -230,6 +230,10 @@ public partial class MainForm : Form
             }
         }
         catch (OperationCanceledException) { }
+        catch (VideoSizeBelowTargetSizeException ex)
+        {
+            MessageBox.Show(ex.Message, "Operation complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
         finally
         {
             SetControlsEnabledState(true);
