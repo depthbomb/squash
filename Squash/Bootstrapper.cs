@@ -9,11 +9,17 @@ internal static class Bootstrapper
     {
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddHttpClient("Default", c => c.DefaultRequestHeaders.Add("User-Agent", "Squash"));
-        serviceCollection.AddSingleton<MainForm>();
+        // Forms
+        serviceCollection.AddSingleton<MainFormV2>();
+        // Controls
+        serviceCollection.AddSingleton<EncodingQueuePanel>();
+        serviceCollection.AddSingleton<AboutPanel>();
+        // Services
         serviceCollection.AddSingleton<BinaryLocatorService>();
         serviceCollection.AddSingleton<PersistentStateService>();
         serviceCollection.AddSingleton<DownloadService>();
         serviceCollection.AddSingleton<ExtractService>();
+        serviceCollection.AddSingleton<ThumbnailService>();
         serviceCollection.AddSingleton<EncodeService>();
         serviceCollection.AddSingleton<Win32Service>();
         serviceCollection.AddTransient<MissingBinariesTaskDialogService>();
@@ -52,6 +58,6 @@ internal static class Bootstrapper
         };
         
         ApplicationConfiguration.Initialize();
-        Application.Run(services.GetRequiredService<MainForm>());
+        Application.Run(services.GetRequiredService<MainFormV2>());
     }
 }

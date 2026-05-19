@@ -5,6 +5,8 @@
 .idea/compiler.xml
 .idea/libraries/
 
+.vs/
+
 .run/
 bin/
 obj/

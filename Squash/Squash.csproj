@@ -32,6 +32,7 @@
       <None Include="..\resources\icon.ico">
         <Link>icon.ico</Link>
       </None>
+      <None Remove="Squash.csproj.DotSettings" />
     </ItemGroup>
 
     <ItemGroup>
@@ -48,8 +49,24 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Update="Forms\AboutForm.cs">
+      <Compile Update="Forms\MainFormV2.cs">
         <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="Controls\NavigationView.cs">
+        <SubType>UserControl</SubType>
+      </Compile>
+      <Compile Update="Controls\AboutPanel.cs">
+        <SubType>UserControl</SubType>
+      </Compile>
+      <Compile Update="Resources\Strings.Designer.cs">
+        <DesignTime>True</DesignTime>
+        <AutoGen>True</AutoGen>
+        <DependentUpon>Strings.resx</DependentUpon>
+      </Compile>
+      <Compile Update="Resources\Images.Designer.cs">
+        <DesignTime>True</DesignTime>
+        <AutoGen>True</AutoGen>
+        <DependentUpon>Images.resx</DependentUpon>
       </Compile>
     </ItemGroup>
 
@@ -59,6 +76,17 @@
             <CopyToPublishDirectory>Always</CopyToPublishDirectory>
             <TargetPath>%(Filename)%(Extension)</TargetPath>
         </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Update="Resources\Strings.resx">
+        <Generator>ResXFileCodeGenerator</Generator>
+        <LastGenOutput>Strings.Designer.cs</LastGenOutput>
+      </EmbeddedResource>
+      <EmbeddedResource Update="Resources\Images.resx">
+        <Generator>ResXFileCodeGenerator</Generator>
+        <LastGenOutput>Images.Designer.cs</LastGenOutput>
+      </EmbeddedResource>
     </ItemGroup>
 
 </Project>

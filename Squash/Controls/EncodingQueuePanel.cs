@@ -1,122 +1,88 @@
-namespace Squash.Forms;
+﻿namespace Squash.Controls;
 
-public partial class MainForm : Form
+public partial class EncodingQueuePanel : UserControl
 {
-    private CancellationTokenSource? _cts;
-    
-    private bool HasInputFile  => !string.IsNullOrWhiteSpace(c_InputFileTextBox.Text);
-    private bool HasOutputFile => !string.IsNullOrWhiteSpace(c_OutputFileTextBox.Text);
+    private const int ThumbnailMarginSize = 4;
 
-    private const string DisclaimerKey = "disclaimer-v1";
-    
+    private CancellationTokenSource? _cts;
+
+    private bool HasInputFile  => !c_InputFileTextBox.Text.IsNullOrWhiteSpace();
+    private bool HasOutputFile => !c_OutputFileTextBox.Text.IsNullOrWhiteSpace();
+
     private const string MainButtonInitialText = "&Squash it!";
     private const string MainButtonWorkingText = "&Cancel";
 
-    private readonly PersistentStateService           _persistentState;
-    private readonly BinaryLocatorService             _binaryLocator;
-    private readonly EncodeService                    _encoder;
-    private readonly Win32Service                     _win32;
-    private readonly FirstRunTaskDialogService        _firstRunTaskDialog;
-    private readonly MissingBinariesTaskDialogService _missingBinariesTaskDialog;
+    private readonly ThumbnailService _thumbnail;
+    private readonly EncodeService    _encoder;
+    private readonly Win32Service     _win32;
 
     private readonly Flag _workingFlag = new(false);
 
-    public MainForm(PersistentStateService           persistentState,
-                    BinaryLocatorService             binaryLocator,
-                    EncodeService                    encoder,
-                    Win32Service                     win32,
-                    FirstRunTaskDialogService        firstRunTaskDialog,
-                    MissingBinariesTaskDialogService missingBinariesTaskDialog)
+    public EncodingQueuePanel(ThumbnailService thumbnail, EncodeService encoder, Win32Service  win32)
     {
-        _persistentState           = persistentState;
-        _binaryLocator             = binaryLocator;
-        _encoder                   = encoder;
-        _win32                     = win32;
-        _firstRunTaskDialog        = firstRunTaskDialog;
-        _missingBinariesTaskDialog = missingBinariesTaskDialog;
+        _thumbnail = thumbnail;
+        _encoder   = encoder;
+        _win32     = win32;
 
         InitializeComponent();
 
         c_QualityPresetComboBox.SelectedIndex = 1;
 
         #region Control Events
-        Shown                           += OnShown;
-        FormClosing                     += OnFormClosing;
+        DragEnter += OnDragEnter;
+        DragDrop  += OnDragDrop;
+
+        c_ThumbnailTablePanel.Resize += C_ThumbnailTablePanelOnResize;
+
         c_InputFileTextBox.TextChanged  += TextBoxesOnTextChanged;
         c_OutputFileTextBox.TextChanged += TextBoxesOnTextChanged;
         c_MainButton.Click              += C_MainButtonOnClick;
         c_InputFileBrowseButton.Click   += C_InputFileBrowseButtonOnClick;
         c_OutputFileBrowseButton.Click  += C_OutputFileBrowseButtonOnClick;
-        c_StatusStripAboutLink.Click += C_StatusStripAboutLinkOnClick;
         #endregion
 
         UpdateOutputFileBrowseButtonState();
         UpdateMainButtonState();
+        UpdatePictureBoxLayout();
     }
 
     #region Control Event Handlers
-    private async void OnShown(object? sender, EventArgs e)
-    {
-        if (!_persistentState.HasCompleted(DisclaimerKey))
-        {
-            var firstRunRes = await _firstRunTaskDialog.ShowDialogAsync(this);
-            if (firstRunRes == TaskDialogButton.Cancel)
-            {
-                Application.Exit();
-                return;
-            }
-
-            await _persistentState.MarkCompletedAsync(DisclaimerKey);
-        }
-        
-        var results = await Task.WhenAll(new[]
-        {
-            _binaryLocator.HasBinaryAsync("ffmpeg"),
-            _binaryLocator.HasBinaryAsync("ffprobe")
-        });
-        
-        var allTrue = results.All(r => r);
-        if (!allTrue)
-        {
-            var missingBinariesRes = await _missingBinariesTaskDialog.ShowDialogAsync(this);
-            if (missingBinariesRes.Text == "No" || missingBinariesRes == TaskDialogButton.Cancel)
-            {
-                Application.Exit();
-            }
-        }
-    }
-
-    private void OnFormClosing(object? sender, FormClosingEventArgs e)
-    {
-        _cts?.Cancel();
-        _cts?.Dispose();
-    }
-
-    private void OnDragEnter(object sender, DragEventArgs e)
+    private void OnDragEnter(object? sender, DragEventArgs e)
     {
         if (e.Data?.GetData(DataFormats.FileDrop) is not string[] files)
         {
             e.Effect = DragDropEffects.None;
             return;
         }
-        
+
         var valid = files.Length == 1 && IsVideoFile(files[0]);
-        
+
         e.Effect = valid ? DragDropEffects.Copy : DragDropEffects.None;
     }
 
-    private void OnDragDrop(object sender, DragEventArgs e)
+    private async void OnDragDrop(object? sender, DragEventArgs e)
     {
         if (e.Data?.GetData(DataFormats.FileDrop) is string[] { Length: 1 } files && IsVideoFile(files[0]))
         {
             c_InputFileTextBox.Text = files[0];
+
+            var image = await _thumbnail.GetVideoThumbnailAsync(
+                FilePath.From(c_InputFileTextBox.Text),
+                FilePath.TempDir());
+
+            c_ThumbnailPictureBox.Image = Image.FromFile(image.FullPath);
         }
+    }
+
+    private void C_ThumbnailTablePanelOnResize(object? sender, EventArgs e)
+    {
+        UpdatePictureBoxLayout();
     }
 
     private void C_InputFileBrowseButtonOnClick(object? sender, EventArgs e)
     {
         using var ofd = new OpenFileDialog();
-        
+
         ofd.Title  = "Select video file to squash";
         ofd.Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.flv;*.mpeg;*.mpg|All Files|*.*";
 
@@ -129,7 +95,7 @@ public partial class MainForm : Form
     private void C_OutputFileBrowseButtonOnClick(object? sender, EventArgs e)
     {
         using var sfd = new SaveFileDialog();
-        
+
         sfd.Title    = "Select output location";
         sfd.Filter   = "MP4 Video|*.mp4";
         sfd.FileName = Path.GetFileName(c_OutputFileTextBox.Text);
@@ -162,9 +128,9 @@ public partial class MainForm : Form
             _cts?.Cancel();
             return;
         }
-        
+
         _win32.PreventSleep();
-        _win32.SetTaskbarIndeterminate(this);
+        // _win32.SetTaskbarIndeterminate(this);
 
         _cts?.Cancel();
         _cts?.Dispose();
@@ -187,21 +153,21 @@ public partial class MainForm : Form
                 c_QualityPresetComboBox.SelectedIndex + 1,
                 p =>
                 {
-                    Text = p.TitleText;
+                    // Text = p.TitleText;
 
-                    if (p.ProgressPercent >= 100)
-                    {
-                        _win32.SetTaskbarIndeterminate(this);
-                    }
-                    else
-                    {
-                        _win32.SetTaskbarProgress(this, p.ProgressPercent, 100);
-                    }
+                    // if (p.ProgressPercent >= 100)
+                    // {
+                    //     _win32.SetTaskbarIndeterminate(this);
+                    // }
+                    // else
+                    // {
+                    //     _win32.SetTaskbarProgress(this, p.ProgressPercent, 100);
+                    // }
                 },
                 _cts.Token
             );
 
-            _win32.FlashUntilFocused(this);
+            // _win32.FlashUntilFocused(this);
 
             if (res.Success)
             {
@@ -240,19 +206,11 @@ public partial class MainForm : Form
             SetControlsEnabledState(true);
             UpdateMainButtonState();
             ResetControls();
-            
-            _workingFlag.Reset();
-            
-            _win32.AllowSleep();
-            _win32.ClearTaskbarProgress(this);
-        }
-    }
 
-    private async void C_StatusStripAboutLinkOnClick(object? sender, EventArgs e)
-    {
-        using (var aboutForm = new AboutForm())
-        {
-            await aboutForm.ShowDialogAsync(this);
+            _workingFlag.Reset();
+
+            _win32.AllowSleep();
+            // _win32.ClearTaskbarProgress(this);
         }
     }
     #endregion
@@ -291,7 +249,6 @@ public partial class MainForm : Form
 
     private void ResetControls()
     {
-        Text              = "Squash";
         c_MainButton.Text = MainButtonInitialText;
     }
 
@@ -314,8 +271,38 @@ public partial class MainForm : Form
         }
 
         var safeStem = stem.Length > maxStemLength ? stem[..maxStemLength] : stem;
-        
+
         return $"{safeStem}{suffix}";
+    }
+
+    private void UpdatePictureBoxLayout()
+    {
+        Control parent = c_ThumbnailTablePanel;
+
+        int availableWidth  = parent.ClientSize.Width  - (ThumbnailMarginSize * 2);
+        int availableHeight = parent.ClientSize.Height - (ThumbnailMarginSize * 2);
+
+        if (availableWidth <= 0 || availableHeight <= 0)
+        {
+            return;
+        }
+
+        const double aspect = 16.0 / 9.0;
+
+        int width  = availableWidth;
+        int height = (int)(width / aspect);
+
+        if (height > availableHeight)
+        {
+            height = availableHeight;
+            width  = (int)(height * aspect);
+        }
+
+        c_ThumbnailPictureBox.Size = new Size(width, height);
+
+        c_ThumbnailPictureBox.Location = new Point(
+            (parent.ClientSize.Width  - width)  / 2,
+            (parent.ClientSize.Height - height) / 2);
     }
     #endregion
 }
