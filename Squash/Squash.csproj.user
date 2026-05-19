@@ -7,11 +7,5 @@
     <Compile Update="Controls\NumericUpDownEx.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Update="Controls\SideNavigation.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Update="Forms\MainForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
   </ItemGroup>
 </Project>

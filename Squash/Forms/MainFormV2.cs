@@ -24,7 +24,7 @@ public partial class MainFormV2 : Form
         InitializeComponent();
 
         c_NavigationView.AddPage(
-            "Encode queue",
+            "Encoding",
             encodingQueuePanel,
             Resources.Images.film_add);
         c_NavigationView.AddPage(

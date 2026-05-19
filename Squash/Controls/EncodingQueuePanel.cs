@@ -2,6 +2,8 @@
 
 public partial class EncodingQueuePanel : UserControl
 {
+    private const int ThumbnailMarginSize = 4;
+
     private CancellationTokenSource? _cts;
 
     private bool HasInputFile  => !c_InputFileTextBox.Text.IsNullOrWhiteSpace();
@@ -10,15 +12,17 @@ public partial class EncodingQueuePanel : UserControl
     private const string MainButtonInitialText = "&Squash it!";
     private const string MainButtonWorkingText = "&Cancel";
 
-    private readonly EncodeService _encoder;
-    private readonly Win32Service  _win32;
+    private readonly ThumbnailService _thumbnail;
+    private readonly EncodeService    _encoder;
+    private readonly Win32Service     _win32;
 
     private readonly Flag _workingFlag = new(false);
 
-    public EncodingQueuePanel(EncodeService encoder, Win32Service  win32)
+    public EncodingQueuePanel(ThumbnailService thumbnail, EncodeService encoder, Win32Service  win32)
     {
-        _encoder = encoder;
-        _win32   = win32;
+        _thumbnail = thumbnail;
+        _encoder   = encoder;
+        _win32     = win32;
 
         InitializeComponent();
 
@@ -27,6 +31,8 @@ public partial class EncodingQueuePanel : UserControl
         #region Control Events
         DragEnter += OnDragEnter;
         DragDrop  += OnDragDrop;
+
+        c_ThumbnailTablePanel.Resize += C_ThumbnailTablePanelOnResize;
 
         c_InputFileTextBox.TextChanged  += TextBoxesOnTextChanged;
         c_OutputFileTextBox.TextChanged += TextBoxesOnTextChanged;
@@ -37,6 +43,7 @@ public partial class EncodingQueuePanel : UserControl
 
         UpdateOutputFileBrowseButtonState();
         UpdateMainButtonState();
+        UpdatePictureBoxLayout();
     }
 
     #region Control Event Handlers
@@ -53,12 +60,23 @@ public partial class EncodingQueuePanel : UserControl
         e.Effect = valid ? DragDropEffects.Copy : DragDropEffects.None;
     }
 
-    private void OnDragDrop(object? sender, DragEventArgs e)
+    private async void OnDragDrop(object? sender, DragEventArgs e)
     {
         if (e.Data?.GetData(DataFormats.FileDrop) is string[] { Length: 1 } files && IsVideoFile(files[0]))
         {
             c_InputFileTextBox.Text = files[0];
+
+            var image = await _thumbnail.GetVideoThumbnailAsync(
+                FilePath.From(c_InputFileTextBox.Text),
+                FilePath.TempDir());
+
+            c_ThumbnailPictureBox.Image = Image.FromFile(image.FullPath);
         }
+    }
+
+    private void C_ThumbnailTablePanelOnResize(object? sender, EventArgs e)
+    {
+        UpdatePictureBoxLayout();
     }
 
     private void C_InputFileBrowseButtonOnClick(object? sender, EventArgs e)
@@ -255,6 +273,36 @@ public partial class EncodingQueuePanel : UserControl
         var safeStem = stem.Length > maxStemLength ? stem[..maxStemLength] : stem;
 
         return $"{safeStem}{suffix}";
+    }
+
+    private void UpdatePictureBoxLayout()
+    {
+        Control parent = c_ThumbnailTablePanel;
+
+        int availableWidth  = parent.ClientSize.Width  - (ThumbnailMarginSize * 2);
+        int availableHeight = parent.ClientSize.Height - (ThumbnailMarginSize * 2);
+
+        if (availableWidth <= 0 || availableHeight <= 0)
+        {
+            return;
+        }
+
+        const double aspect = 16.0 / 9.0;
+
+        int width  = availableWidth;
+        int height = (int)(width / aspect);
+
+        if (height > availableHeight)
+        {
+            height = availableHeight;
+            width  = (int)(height * aspect);
+        }
+
+        c_ThumbnailPictureBox.Size = new Size(width, height);
+
+        c_ThumbnailPictureBox.Location = new Point(
+            (parent.ClientSize.Width  - width)  / 2,
+            (parent.ClientSize.Height - height) / 2);
     }
     #endregion
 }

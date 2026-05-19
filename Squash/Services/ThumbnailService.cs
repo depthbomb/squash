@@ -58,6 +58,11 @@ public class ThumbnailService
             throw new InvalidOperationException($"FFmpeg failed: {error}");
         }
 
-        return !thumbnailFilePath.Exists() ? throw new Exception("Could not create thumbnail.") : thumbnailFilePath;
+        if (!thumbnailFilePath.Exists())
+        {
+            throw new Exception("Could not create thumbnail.");
+        }
+
+        return thumbnailFilePath;
     }
 }

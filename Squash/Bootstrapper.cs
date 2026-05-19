@@ -19,6 +19,7 @@ internal static class Bootstrapper
         serviceCollection.AddSingleton<PersistentStateService>();
         serviceCollection.AddSingleton<DownloadService>();
         serviceCollection.AddSingleton<ExtractService>();
+        serviceCollection.AddSingleton<ThumbnailService>();
         serviceCollection.AddSingleton<EncodeService>();
         serviceCollection.AddSingleton<Win32Service>();
         serviceCollection.AddTransient<MissingBinariesTaskDialogService>();
