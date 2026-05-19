@@ -2,9 +2,6 @@
 
 A tool to compress a video to a target size while maintaining as much quality as possible, primarily made with Discord in mind.
 
-> [!IMPORTANT]
-> Squash isn't magic. It can't encode a 150MB video down to 10MB without a severe loss in quality; it's just not possible. You should aim for reasonable targets based on the original video file size.
-
 ## Requirements
 
 Squash requires [FFmpeg and FFprobe](https://ffmpeg.org/) on your system. If they aren't found, you will have the option to let Squash download them for you.

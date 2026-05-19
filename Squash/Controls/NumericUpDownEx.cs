@@ -1,6 +1,4 @@
-﻿using System.ComponentModel;
-
-namespace Squash.Controls;
+﻿namespace Squash.Controls;
 
 public class NumericUpDownEx : NumericUpDown
 {

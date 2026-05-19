@@ -16,5 +16,9 @@ public static class StringExtensions
 
             return new Guid(guidBytes).ToString(format);
         }
+
+        public bool IsNullOrWhiteSpace() => string.IsNullOrWhiteSpace(value);
+
+        public bool IsNullOrEmpty() => string.IsNullOrEmpty(value);
     }
 }
