@@ -5,6 +5,3 @@ FLASHWINFO
 FLASHWINFO_FLAGS
 SetThreadExecutionState
 SetCurrentProcessExplicitAppUserModelID
-RegisterWindowMessage
-SendMessage
-FindWindow

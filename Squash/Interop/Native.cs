@@ -84,8 +84,6 @@ public static class Native
 
     public static void SetCurrentProcessExplicitAppUserModelId(string appId) => PInvoke.SetCurrentProcessExplicitAppUserModelID(appId);
 
-    public static HWND FindWindow(string windowName) => PInvoke.FindWindow(null, windowName);
-
     private static HWND GetHandle(Form form) => (HWND)form.Handle;
 
     private static FLASHWINFO CreateFlashInfo(Form form, FLASHWINFO_FLAGS flags, uint count) => new()

@@ -1,5 +1,6 @@
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
+using Squash.Interop;
 
 namespace Squash.Forms;
 
@@ -15,14 +16,12 @@ public partial class MainFormV2 : Form
     private readonly PersistentStateService           _persistentState;
     private readonly EncodeService                    _encoder;
     private readonly BinaryLocatorService             _binaryLocator;
-    private readonly Win32Service                     _win32;
     private readonly FirstRunTaskDialogService        _firstRunTaskDialog;
     private readonly MissingBinariesTaskDialogService _missingBinariesTaskDialog;
 
     public MainFormV2(PersistentStateService           persistentState,
                       EncodeService                    encoder,
                       BinaryLocatorService             binaryLocator,
-                      Win32Service                     win32,
                       EncodingQueuePanel               encodingQueuePanel,
                       SettingsPanel                    settingsPanel,
                       AboutPanel                       aboutPanel,
@@ -32,7 +31,6 @@ public partial class MainFormV2 : Form
         _persistentState           = persistentState;
         _encoder                   = encoder;
         _binaryLocator             = binaryLocator;
-        _win32                     = win32;
         _firstRunTaskDialog        = firstRunTaskDialog;
         _missingBinariesTaskDialog = missingBinariesTaskDialog;
 
@@ -104,8 +102,8 @@ public partial class MainFormV2 : Form
     #region Service Event Handlers
     private void EncoderOnStarted(object? sender, EventArgs e)
     {
-        _win32.PreventSleep();
-        _win32.SetTaskbarIndeterminate(this);
+        Native.PreventSleep();
+        Native.SetTaskbarIndeterminate(this);
 
         _notificationTag      = Guid.NewGuid().ToString("B");
         _notificationSequence = 1;
@@ -139,7 +137,7 @@ public partial class MainFormV2 : Form
 
         if (e.ProgressPercent >= 100)
         {
-            _win32.SetTaskbarIndeterminate(this);
+            Native.SetTaskbarIndeterminate(this);
         }
         else
         {
@@ -152,7 +150,7 @@ public partial class MainFormV2 : Form
 
             await AppNotificationManager.Default.UpdateAsync(prog, _notificationTag, NotificationGroup);
 
-            _win32.SetTaskbarProgress(this, e.ProgressPercent, 100);
+            Native.SetTaskbarProgress(this, e.ProgressPercent, 100);
         }
     }
 
@@ -160,13 +158,13 @@ public partial class MainFormV2 : Form
     {
         c_StatusLabel.Text = InitialStatusText;
 
-        _win32.AllowSleep();
-        _win32.ClearTaskbarProgress(this);
+        Native.AllowSleep();
+        Native.ClearTaskbarProgress(this);
 
         if (res is null)
             return;
 
-        _win32.FlashUntilFocused(this);
+        Native.FlashUntilFocused(this);
 
         if (res.Success)
         {
