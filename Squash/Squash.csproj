@@ -29,8 +29,6 @@
         <NeutralLanguage>en-US</NeutralLanguage>
         
         <StartupObject>Squash.Bootstrapper</StartupObject>
-        
-        <SignAssembly>False</SignAssembly>
     </PropertyGroup>
 
     <ItemGroup>
