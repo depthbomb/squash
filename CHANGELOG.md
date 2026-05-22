@@ -1,3 +1,14 @@
+# 05/21/2026
+
+## 3.2.0
+
+- Overhauled UI
+- The selected video file's thumbnail is now displayed, double-clicking will open the video in your default application
+- Added settings
+- Added notifications, which can be disabled in settings
+- Quality presets 3 and 4 are now not selectable by default and must be enabled in settings
+- Improved file picker and save file dialogs
+
 # 05/16/2026
 
 ## 3.1.0

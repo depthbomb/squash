@@ -3,7 +3,7 @@ namespace Squash.Services;
 public class DownloadService
 {
     public event EventHandler<int>? ProgressChanged;
-    
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IProgress<int>     _progress;
 
@@ -17,14 +17,14 @@ public class DownloadService
     {
         using var http = _httpClientFactory.CreateClient("Default");
         using var res  = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-        
+
         res.EnsureSuccessStatusCode();
-        
+
         var totalBytes = res.Content.Headers.ContentLength;
-        
+
         await using var cs = await res.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         await using var fs = destinationPath.Open(FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
-        
+
         var buffer    = new byte[81920];
         var totalRead = 0L;
 
@@ -32,7 +32,7 @@ public class DownloadService
         while ((bytesRead = await cs.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
         {
             await fs.WriteAsync(buffer.AsMemory(0, bytesRead), ct).ConfigureAwait(false);
-            
+
             totalRead += bytesRead;
 
             if (totalBytes is > 0)
@@ -45,7 +45,7 @@ public class DownloadService
                 _progress.Report(-1);
             }
         }
-        
+
         _progress.Report(100);
     }
 }

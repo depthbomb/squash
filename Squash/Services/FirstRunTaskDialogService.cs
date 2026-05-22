@@ -10,7 +10,7 @@ public class FirstRunTaskDialogService
             Text = "I understand"
         };
         #endregion
-        
+
         #region Pages
         var initialPage = new TaskDialogPage
         {
@@ -31,9 +31,9 @@ public class FirstRunTaskDialogService
         #endregion
 
         initialPage.Buttons[0].Enabled = false;
-        
+
         vcb.CheckedChanged += (_, _) => initialPage.Buttons[0].Enabled = vcb.Checked;
-        
+
         return await TaskDialog.ShowDialogAsync(owner, initialPage);
     }
 }

@@ -1,11 +1,10 @@
-﻿namespace Squash.Controls;
+﻿using WinRT.Interop;
+using Windows.Storage.Pickers;
+
+namespace Squash.Controls;
 
 public partial class EncodingQueuePanel : UserControl
 {
-    private const int ThumbnailMarginSize = 4;
-
-    private CancellationTokenSource? _cts;
-
     private bool HasInputFile  => !c_InputFileTextBox.Text.IsNullOrWhiteSpace();
     private bool HasOutputFile => !c_OutputFileTextBox.Text.IsNullOrWhiteSpace();
 
@@ -14,25 +13,27 @@ public partial class EncodingQueuePanel : UserControl
 
     private readonly ThumbnailService _thumbnail;
     private readonly EncodeService    _encoder;
-    private readonly Win32Service     _win32;
+    private readonly Flag             _workingFlag = new(false);
 
-    private readonly Flag _workingFlag = new(false);
-
-    public EncodingQueuePanel(ThumbnailService thumbnail, EncodeService encoder, Win32Service  win32)
+    public EncodingQueuePanel(ThumbnailService thumbnail, EncodeService encoder)
     {
         _thumbnail = thumbnail;
         _encoder   = encoder;
-        _win32     = win32;
 
         InitializeComponent();
 
+        c_QualityPresetComboBox.Items.AddRange("1. Fast, decent quality", "2. Slow, better quality (recommended)");
+        if (Settings.Default.EnableAdditionalQualityPresets)
+        {
+            c_QualityPresetComboBox.Items.AddRange("3. Very slow, better quality", "4. Absurdly slow, better quality");
+        }
         c_QualityPresetComboBox.SelectedIndex = 1;
 
         #region Control Events
         DragEnter += OnDragEnter;
         DragDrop  += OnDragDrop;
 
-        c_ThumbnailTablePanel.Resize += C_ThumbnailTablePanelOnResize;
+        c_ThumbnailPictureBox.DoubleClick += C_ThumbnailPictureBoxOnDoubleClick;
 
         c_InputFileTextBox.TextChanged  += TextBoxesOnTextChanged;
         c_OutputFileTextBox.TextChanged += TextBoxesOnTextChanged;
@@ -43,7 +44,6 @@ public partial class EncodingQueuePanel : UserControl
 
         UpdateOutputFileBrowseButtonState();
         UpdateMainButtonState();
-        UpdatePictureBoxLayout();
     }
 
     #region Control Event Handlers
@@ -60,53 +60,69 @@ public partial class EncodingQueuePanel : UserControl
         e.Effect = valid ? DragDropEffects.Copy : DragDropEffects.None;
     }
 
-    private async void OnDragDrop(object? sender, DragEventArgs e)
+    private void OnDragDrop(object? sender, DragEventArgs e)
     {
         if (e.Data?.GetData(DataFormats.FileDrop) is string[] { Length: 1 } files && IsVideoFile(files[0]))
         {
             c_InputFileTextBox.Text = files[0];
-
-            var image = await _thumbnail.GetVideoThumbnailAsync(
-                FilePath.From(c_InputFileTextBox.Text),
-                FilePath.TempDir());
-
-            c_ThumbnailPictureBox.Image = Image.FromFile(image.FullPath);
         }
     }
 
-    private void C_ThumbnailTablePanelOnResize(object? sender, EventArgs e)
+    private async void C_ThumbnailPictureBoxOnDoubleClick(object? sender, EventArgs e)
     {
-        UpdatePictureBoxLayout();
-    }
-
-    private void C_InputFileBrowseButtonOnClick(object? sender, EventArgs e)
-    {
-        using var ofd = new OpenFileDialog();
-
-        ofd.Title  = "Select video file to squash";
-        ofd.Filter = "Video Files|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.webm;*.flv;*.mpeg;*.mpg|All Files|*.*";
-
-        if (ofd.ShowDialog(this) == DialogResult.OK)
+        if (HasInputFile)
         {
-            c_InputFileTextBox.Text = ofd.FileName;
+            await FilePath.From(c_InputFileTextBox.Text).LaunchFileAsync();
         }
     }
 
-    private void C_OutputFileBrowseButtonOnClick(object? sender, EventArgs e)
+    private async void C_InputFileBrowseButtonOnClick(object? sender, EventArgs e)
     {
-        using var sfd = new SaveFileDialog();
+        var picker = new FileOpenPicker();
 
-        sfd.Title    = "Select output location";
-        sfd.Filter   = "MP4 Video|*.mp4";
-        sfd.FileName = Path.GetFileName(c_OutputFileTextBox.Text);
+        InitializeWithWindow.Initialize(picker, Handle);
 
-        if (sfd.ShowDialog(this) == DialogResult.OK)
+        picker.SuggestedStartLocation = PickerLocationId.VideosLibrary;
+        picker.ViewMode               = PickerViewMode.Thumbnail;
+        picker.FileTypeFilter.Add(".mp4");
+        picker.FileTypeFilter.Add(".mkv");
+        picker.FileTypeFilter.Add(".avi");
+        picker.FileTypeFilter.Add(".mov");
+        picker.FileTypeFilter.Add(".wmv");
+        picker.FileTypeFilter.Add(".webm");
+        picker.FileTypeFilter.Add(".flv");
+        picker.FileTypeFilter.Add(".mpeg");
+        picker.FileTypeFilter.Add(".mpg");
+
+        var res = await picker.PickSingleFileAsync();
+        if (res is null)
         {
-            c_OutputFileTextBox.Text = sfd.FileName;
+            return;
         }
+
+        c_InputFileTextBox.Text = res.Path;
     }
 
-    private void TextBoxesOnTextChanged(object? sender, EventArgs e)
+    private async void C_OutputFileBrowseButtonOnClick(object? sender, EventArgs e)
+    {
+        var picker = new FileSavePicker();
+
+        InitializeWithWindow.Initialize(picker, Handle);
+
+        picker.SuggestedStartLocation = PickerLocationId.Desktop;
+        picker.SuggestedFileName      = Path.GetFileName(c_OutputFileTextBox.Text);
+        picker.FileTypeChoices.Add("MP4 Video", new List<string> { ".mp4" });
+
+        var res = await picker.PickSaveFileAsync();
+        if (res is null)
+        {
+            return;
+        }
+
+        c_OutputFileTextBox.Text = res.Path;
+    }
+
+    private async void TextBoxesOnTextChanged(object? sender, EventArgs e)
     {
         if (sender == c_InputFileTextBox && HasInputFile)
         {
@@ -115,6 +131,13 @@ public partial class EncodingQueuePanel : UserControl
             var newPath   = inputPath.WithName(newName);
 
             c_OutputFileTextBox.Text = newPath.FullPath;
+
+            if (c_ThumbnailPictureBox.Cursor == Cursors.No)
+            {
+                c_ThumbnailPictureBox.Cursor = Cursors.Hand;
+            }
+
+            await SetThumbnailAsync();
         }
 
         UpdateOutputFileBrowseButtonState();
@@ -125,16 +148,9 @@ public partial class EncodingQueuePanel : UserControl
     {
         if (_workingFlag.IsTrue())
         {
-            _cts?.Cancel();
+            _encoder.CancelEncoding();
             return;
         }
-
-        _win32.PreventSleep();
-        // _win32.SetTaskbarIndeterminate(this);
-
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = new CancellationTokenSource();
 
         c_MainButton.Text = MainButtonWorkingText;
 
@@ -144,54 +160,13 @@ public partial class EncodingQueuePanel : UserControl
 
             SetControlsEnabledState(false);
 
-            var res = await _encoder.ResizeVideoToTargetAsync(
+            _ = await _encoder.ResizeVideoToTargetAsync(
                 FilePath.From(c_InputFileTextBox.Text),
                 FilePath.From(c_OutputFileTextBox.Text),
                 Convert.ToInt32(c_TargetSizeInput.Value),
                 Convert.ToDouble(c_ToleranceInput.Value),
                 Convert.ToInt32(c_MaxIterationsInput.Value),
-                c_QualityPresetComboBox.SelectedIndex + 1,
-                p =>
-                {
-                    // Text = p.TitleText;
-
-                    // if (p.ProgressPercent >= 100)
-                    // {
-                    //     _win32.SetTaskbarIndeterminate(this);
-                    // }
-                    // else
-                    // {
-                    //     _win32.SetTaskbarProgress(this, p.ProgressPercent, 100);
-                    // }
-                },
-                _cts.Token
-            );
-
-            // _win32.FlashUntilFocused(this);
-
-            if (res.Success)
-            {
-                MessageBox.Show(
-                    this,
-                    $"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
-                    $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).",
-                    "Operation complete",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information
-                );
-            }
-            else
-            {
-                MessageBox.Show(
-                    this,
-                    $"Could not reach target size within tolerance after {res.Iteration} iteration(s). Saved best " +
-                    $"result of {res.FileSizeBytes.ToFileSizeString()} (target was "                                +
-                    $"{res.TargetSizeBytes.ToFileSizeString()}) in {res.ElapsedSeconds.ToDurationString()}.",
-                    "Operation complete",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
-            }
+                c_QualityPresetComboBox.SelectedIndex + 1);
         }
         catch (OperationCanceledException)
         {
@@ -208,9 +183,6 @@ public partial class EncodingQueuePanel : UserControl
             ResetControls();
 
             _workingFlag.Reset();
-
-            _win32.AllowSleep();
-            // _win32.ClearTaskbarProgress(this);
         }
     }
     #endregion
@@ -258,13 +230,11 @@ public partial class EncodingQueuePanel : UserControl
 
     private string GetUniqueSquashedName(FilePath inputFile)
     {
-        var stem      = inputFile.Stem;
-        var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-        var suffix    = $"-sqsh-{timestamp}.mp4";
-
+        var stem          = inputFile.Stem;
+        var timestamp     = DateTime.Now.ToString("yyyyMMddHHmmss");
+        var suffix        = $"-sqsh-{timestamp}.mp4";
         var directory     = inputFile.Parent.FullPath;
         var maxStemLength = 250 - directory.Length - 1 - suffix.Length;
-
         if (maxStemLength < 5)
         {
             maxStemLength = 5;
@@ -275,34 +245,13 @@ public partial class EncodingQueuePanel : UserControl
         return $"{safeStem}{suffix}";
     }
 
-    private void UpdatePictureBoxLayout()
+    private async Task SetThumbnailAsync()
     {
-        Control parent = c_ThumbnailTablePanel;
+        var image = await _thumbnail.GetVideoThumbnailAsync(
+            FilePath.From(c_InputFileTextBox.Text),
+            FilePath.TempDir());
 
-        int availableWidth  = parent.ClientSize.Width  - (ThumbnailMarginSize * 2);
-        int availableHeight = parent.ClientSize.Height - (ThumbnailMarginSize * 2);
-
-        if (availableWidth <= 0 || availableHeight <= 0)
-        {
-            return;
-        }
-
-        const double aspect = 16.0 / 9.0;
-
-        int width  = availableWidth;
-        int height = (int)(width / aspect);
-
-        if (height > availableHeight)
-        {
-            height = availableHeight;
-            width  = (int)(height * aspect);
-        }
-
-        c_ThumbnailPictureBox.Size = new Size(width, height);
-
-        c_ThumbnailPictureBox.Location = new Point(
-            (parent.ClientSize.Width  - width)  / 2,
-            (parent.ClientSize.Height - height) / 2);
+        c_ThumbnailPictureBox.Image = Image.FromFile(image.FullPath);
     }
     #endregion
 }

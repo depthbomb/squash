@@ -42,10 +42,10 @@ The third level (3) uses the h265 codec with the "slow" preset. This further inc
 The final level (4) uses the h265 codec with the "veryslow" preset. This can result in extremely long encoding times for each iteration.
 
 > [!WARNING]
-> It is generally recommended to stick with the first two levels, as the latter two can take a very long time even for reasonable targets while providing only minor improvements in quality.
+> The latter two presets are not selectable by default because they can take a very long time even for reasonable targets while providing only minor improvements in quality.
 
 ## Planned features
 
 - [ ] Smoother FFmpeg/FFprobe detection, download, and extraction flow
-- [ ] Notifications
+- [x] Notifications
 - [ ] Queue support for multiple video files with parallel encodings

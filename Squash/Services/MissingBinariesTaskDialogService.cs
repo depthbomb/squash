@@ -28,7 +28,7 @@ public class MissingBinariesTaskDialogService
             State   = TaskDialogProgressBarState.Marquee
         };
         #endregion
-        
+
         #region Page
         var initialPage = new TaskDialogPage
         {
@@ -49,10 +49,10 @@ public class MissingBinariesTaskDialogService
         };
         var downloadPage = new TaskDialogPage
         {
-            Caption = "Squash",
-            Heading = "Downloading required binaries",
-            Text    = "Starting download...",
-            Icon    = TaskDialogIcon.Information,
+            Caption     = "Squash",
+            Heading     = "Downloading required binaries",
+            Text        = "Starting download...",
+            Icon        = TaskDialogIcon.Information,
             ProgressBar = downloadProgressBar,
             Buttons =
             {
@@ -71,14 +71,14 @@ public class MissingBinariesTaskDialogService
             }
         };
         #endregion
-        
+
         #region Event subscribers
         yesButton.Click += (_, _) => initialPage.Navigate(downloadPage);
 
         downloadPage.Created += async (_, _) =>
         {
             var temp = FilePath.TempFile();
-            
+
             _downloader.ProgressChanged += (_, progress) =>
             {
                 if (progress is < 0 or >= 100)
@@ -95,7 +95,7 @@ public class MissingBinariesTaskDialogService
             };
 
             await _downloader.DownloadFileAsync(DownloadUrl, temp);
-            
+
             downloadPage.Text = "Extracting...";
 
             await _extractor.ExtractFilesFromArchiveAsync(
@@ -103,13 +103,13 @@ public class MissingBinariesTaskDialogService
                 FilePath.From(AppDomain.CurrentDomain.BaseDirectory),
                 ["ffmpeg.exe", "ffprobe.exe"]
             );
-            
+
             temp.Unlink(true);
-            
+
             downloadPage.Navigate(successPage);
         };
         #endregion
-        
+
         return await TaskDialog.ShowDialogAsync(owner, initialPage);
     }
 }

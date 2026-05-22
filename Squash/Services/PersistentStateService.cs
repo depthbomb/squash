@@ -10,9 +10,11 @@ public sealed class PersistentStateService
 
     public PersistentStateService()
     {
-        var dir = FilePath.FromSpecialFolder(Environment.SpecialFolder.ApplicationData) / Constants.Product.Organization / Constants.Product.AppName;
+        var dir = FilePath.FromSpecialFolder(Environment.SpecialFolder.ApplicationData) /
+                  GlobalShared.Product.Organization                                     /
+                  GlobalShared.Product.AppName;
         dir.Mkdir(true, true);
-        
+
         _filePath = dir / "persistent-state.json";
 
         _completedActions = Load();
@@ -27,7 +29,7 @@ public sealed class PersistentStateService
     public async Task MarkCompletedAsync(string key, CancellationToken ct = default)
     {
         key = key.CreateGuidFrom("B");
-        
+
         await _lock.WaitAsync(ct);
 
         try
@@ -42,11 +44,11 @@ public sealed class PersistentStateService
             _lock.Release();
         }
     }
-    
+
     public async Task ResetAsync(string key, CancellationToken ct = default)
     {
         key = key.CreateGuidFrom("B");
-        
+
         await _lock.WaitAsync(ct).ConfigureAwait(false);
 
         try

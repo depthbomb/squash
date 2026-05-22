@@ -1,5 +1,4 @@
-﻿using Windows.Win32;
-using Windows.Win32.UI.Shell;
+﻿using Windows.Win32.UI.Shell;
 using Windows.Win32.Foundation;
 using Windows.Win32.System.Power;
 using Windows.Win32.UI.WindowsAndMessaging;
@@ -56,7 +55,7 @@ public sealed class Win32Service
 
     public void FlashUntilFocused(Form form)
     {
-        var info = CreateFlashInfo( form, FLASHWINFO_FLAGS.FLASHW_ALL | FLASHWINFO_FLAGS.FLASHW_TIMERNOFG, uint.MaxValue);
+        var info = CreateFlashInfo(form, FLASHWINFO_FLAGS.FLASHW_ALL | FLASHWINFO_FLAGS.FLASHW_TIMERNOFG, uint.MaxValue);
 
         PInvoke.FlashWindowEx(info);
     }
@@ -67,7 +66,7 @@ public sealed class Win32Service
 
         PInvoke.FlashWindowEx(info);
     }
-    
+
     public void PreventSleep()
     {
         PInvoke.SetThreadExecutionState(EXECUTION_STATE.ES_CONTINUOUS      |

@@ -9,11 +9,10 @@ public sealed class UnableToReachTargetSizeException : Exception
 
     public UnableToReachTargetSizeException(string? message, Exception inner) : base(message, inner) { }
 
-    public static void ThrowIf(
-        [DoesNotReturnIf(true)] bool predicate,
-        string?                      message = null,
-        [CallerArgumentExpression(nameof(predicate))]
-        string? expression = null)
+    public static void ThrowIf([DoesNotReturnIf(true)] bool predicate,
+                               string?                      message = null,
+                               [CallerArgumentExpression(nameof(predicate))]
+                               string? expression = null)
     {
         if (predicate)
         {
@@ -21,11 +20,10 @@ public sealed class UnableToReachTargetSizeException : Exception
         }
     }
 
-    public static void ThrowUnless(
-        [DoesNotReturnIf(false)] bool predicate,
-        string?                       message = null,
-        [CallerArgumentExpression(nameof(predicate))]
-        string? expression = null)
+    public static void ThrowUnless([DoesNotReturnIf(false)] bool predicate,
+                                   string?                       message = null,
+                                   [CallerArgumentExpression(nameof(predicate))]
+                                   string? expression = null)
     {
         if (!predicate)
         {
@@ -34,16 +32,13 @@ public sealed class UnableToReachTargetSizeException : Exception
     }
 
     [DoesNotReturn]
-    public static void Throw() =>
-        throw new UnableToReachTargetSizeException();
+    public static void Throw() => throw new UnableToReachTargetSizeException();
 
     [DoesNotReturn]
-    public static void Throw(string? message) =>
-        throw new UnableToReachTargetSizeException(message);
+    public static void Throw(string? message) => throw new UnableToReachTargetSizeException(message);
 
     [DoesNotReturn]
-    public static void Throw(string? message, Exception inner) =>
-        throw new UnableToReachTargetSizeException(message, inner);
+    public static void Throw(string? message, Exception inner) => throw new UnableToReachTargetSizeException(message, inner);
 }
 
 

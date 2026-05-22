@@ -14,9 +14,9 @@ public class BinaryLocatorService
         }
 
         var path = await FindBinaryPathAsync(name).ConfigureAwait(false);
-        
+
         _cache[name] = path;
-        
+
         return path;
     }
 
@@ -28,7 +28,7 @@ public class BinaryLocatorService
         {
             return localPath;
         }
-        
+
         // 2.) check in PATH
         try
         {
@@ -47,9 +47,9 @@ public class BinaryLocatorService
             {
                 return null;
             }
-                
+
             var stdoutTask = proc.StandardOutput.ReadToEndAsync();
-                
+
             await proc.WaitForExitAsync().ConfigureAwait(false);
 
             var stdout = await stdoutTask.ConfigureAwait(false);
@@ -58,7 +58,7 @@ public class BinaryLocatorService
             {
                 return null;
             }
-                
+
             var firstMatch = stdout
                              .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
                              .FirstOrDefault();
@@ -70,6 +70,6 @@ public class BinaryLocatorService
             return null;
         }
     }
-    
+
     public async Task<bool> HasBinaryAsync(string name) => await GetBinaryPathAsync(name).ConfigureAwait(false) != null;
 }

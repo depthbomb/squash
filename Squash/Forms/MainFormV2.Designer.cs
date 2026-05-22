@@ -31,45 +31,57 @@ partial class MainFormV2
     private void InitializeComponent()
     {
         ComponentResourceManager resources = new ComponentResourceManager(typeof(MainFormV2));
-        c_MainFormStatusStrip = new StatusStrip();
+        c_StatusStrip = new StatusStrip();
+        c_StatusLabel = new ToolStripStatusLabel();
         c_NavigationView = new NavigationView();
+        c_StatusStrip.SuspendLayout();
         SuspendLayout();
         // 
-        // c_MainFormStatusStrip
+        // c_StatusStrip
         // 
-        c_MainFormStatusStrip.Location = new Point(0, 699);
-        c_MainFormStatusStrip.Name = "c_MainFormStatusStrip";
-        c_MainFormStatusStrip.Size = new Size(784, 22);
-        c_MainFormStatusStrip.TabIndex = 0;
+        c_StatusStrip.GripStyle = ToolStripGripStyle.Visible;
+        c_StatusStrip.Items.AddRange(new ToolStripItem[] { c_StatusLabel });
+        c_StatusStrip.Location = new Point(0, 314);
+        c_StatusStrip.Name = "c_StatusStrip";
+        c_StatusStrip.Size = new Size(784, 22);
+        c_StatusStrip.TabIndex = 0;
+        // 
+        // c_StatusLabel
+        // 
+        c_StatusLabel.Name = "c_StatusLabel";
+        c_StatusLabel.Size = new Size(48, 17);
+        c_StatusLabel.Text = "Waiting";
         // 
         // c_NavigationView
         // 
         c_NavigationView.Dock = DockStyle.Fill;
         c_NavigationView.Location = new Point(0, 0);
         c_NavigationView.Name = "c_NavigationView";
-        c_NavigationView.NavigationWidth = 124;
-        c_NavigationView.Size = new Size(784, 699);
+        c_NavigationView.NavigationWidth = 110;
+        c_NavigationView.Size = new Size(784, 314);
         c_NavigationView.TabIndex = 1;
         // 
         // MainFormV2
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(784, 721);
+        ClientSize = new Size(784, 336);
         Controls.Add(c_NavigationView);
-        Controls.Add(c_MainFormStatusStrip);
-        FormScreenCaptureMode = ScreenCaptureMode.HideContent;
+        Controls.Add(c_StatusStrip);
         Icon = (Icon)resources.GetObject("$this.Icon");
-        MinimumSize = new Size(620, 380);
+        MinimumSize = new Size(800, 375);
         Name = "MainFormV2";
         SizeGripStyle = SizeGripStyle.Hide;
         Text = "Squash";
+        c_StatusStrip.ResumeLayout(false);
+        c_StatusStrip.PerformLayout();
         ResumeLayout(false);
         PerformLayout();
     }
-    #endregion
 
-    private StatusStrip c_MainFormStatusStrip;
+    #endregion
+    private StatusStrip c_StatusStrip;
     private Controls.NavigationView c_NavigationView;
+    private ToolStripStatusLabel c_StatusLabel;
 }
 

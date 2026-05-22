@@ -48,7 +48,10 @@ public class ExtractService(BinaryLocatorService binaryLocator)
 
                     await proc.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
                 }
-                catch { /*Ignored*/ }
+                catch
+                {
+                    /*Ignored*/
+                }
             }
         }
     }

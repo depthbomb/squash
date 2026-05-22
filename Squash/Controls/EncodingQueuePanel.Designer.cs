@@ -45,13 +45,11 @@
             label2 = new Label();
             c_MainButton = new Button();
             c_ThumbnailPictureBox = new PictureBox();
-            c_ThumbnailTablePanel = new TableLayoutPanel();
             _controlsTable.SuspendLayout();
             ((ISupportInitialize)c_TargetSizeInput).BeginInit();
             ((ISupportInitialize)c_ToleranceInput).BeginInit();
             ((ISupportInitialize)c_MaxIterationsInput).BeginInit();
             ((ISupportInitialize)c_ThumbnailPictureBox).BeginInit();
-            c_ThumbnailTablePanel.SuspendLayout();
             SuspendLayout();
             // 
             // _controlsTable
@@ -75,7 +73,7 @@
             _controlsTable.Controls.Add(c_MaxIterationsInput, 1, 4);
             _controlsTable.Controls.Add(label1, 0, 1);
             _controlsTable.Controls.Add(label2, 0, 0);
-            _controlsTable.Location = new Point(3, 3);
+            _controlsTable.Location = new Point(201, 3);
             _controlsTable.Name = "_controlsTable";
             _controlsTable.RowCount = 6;
             _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
@@ -84,7 +82,7 @@
             _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
             _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
             _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
-            _controlsTable.Size = new Size(807, 278);
+            _controlsTable.Size = new Size(609, 278);
             _controlsTable.TabIndex = 9;
             // 
             // c_OutputFileTextBox
@@ -93,7 +91,7 @@
             c_OutputFileTextBox.Enabled = false;
             c_OutputFileTextBox.Location = new Point(91, 57);
             c_OutputFileTextBox.Name = "c_OutputFileTextBox";
-            c_OutputFileTextBox.Size = new Size(613, 23);
+            c_OutputFileTextBox.Size = new Size(415, 23);
             c_OutputFileTextBox.TabIndex = 11;
             c_OutputFileTextBox.WordWrap = false;
             // 
@@ -112,7 +110,7 @@
             // c_InputFileBrowseButton
             // 
             c_InputFileBrowseButton.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-            c_InputFileBrowseButton.Location = new Point(710, 11);
+            c_InputFileBrowseButton.Location = new Point(512, 11);
             c_InputFileBrowseButton.Name = "c_InputFileBrowseButton";
             c_InputFileBrowseButton.Size = new Size(94, 24);
             c_InputFileBrowseButton.TabIndex = 4;
@@ -124,7 +122,7 @@
             // 
             c_OutputFileBrowseButton.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             c_OutputFileBrowseButton.Enabled = false;
-            c_OutputFileBrowseButton.Location = new Point(710, 57);
+            c_OutputFileBrowseButton.Location = new Point(512, 57);
             c_OutputFileBrowseButton.Name = "c_OutputFileBrowseButton";
             c_OutputFileBrowseButton.Size = new Size(94, 24);
             c_OutputFileBrowseButton.TabIndex = 5;
@@ -174,10 +172,9 @@
             c_QualityPresetComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             c_QualityPresetComboBox.FlatStyle = FlatStyle.System;
             c_QualityPresetComboBox.FormattingEnabled = true;
-            c_QualityPresetComboBox.Items.AddRange(new object[] { "1. Fast, decent quality", "2. Slow, better quality (recommended)", "3. Very slow, better quality", "4. Absurdly slow, better quality" });
             c_QualityPresetComboBox.Location = new Point(91, 242);
             c_QualityPresetComboBox.Name = "c_QualityPresetComboBox";
-            c_QualityPresetComboBox.Size = new Size(613, 23);
+            c_QualityPresetComboBox.Size = new Size(415, 23);
             c_QualityPresetComboBox.TabIndex = 9;
             c_QualityPresetComboBox.Tag = "toggleable";
             // 
@@ -188,7 +185,7 @@
             c_InputFileTextBox.Location = new Point(91, 11);
             c_InputFileTextBox.Name = "c_InputFileTextBox";
             c_InputFileTextBox.PlaceholderText = "Click browse or drag a video file into this window";
-            c_InputFileTextBox.Size = new Size(613, 23);
+            c_InputFileTextBox.Size = new Size(415, 23);
             c_InputFileTextBox.TabIndex = 10;
             c_InputFileTextBox.WordWrap = false;
             // 
@@ -199,7 +196,7 @@
             c_TargetSizeInput.Location = new Point(91, 103);
             c_TargetSizeInput.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             c_TargetSizeInput.Name = "c_TargetSizeInput";
-            c_TargetSizeInput.Size = new Size(613, 23);
+            c_TargetSizeInput.Size = new Size(415, 23);
             c_TargetSizeInput.Suffix = " MB";
             c_TargetSizeInput.TabIndex = 12;
             c_TargetSizeInput.Tag = "toggleable";
@@ -214,7 +211,7 @@
             c_ToleranceInput.Increment = new decimal(new int[] { 5, 0, 0, 65536 });
             c_ToleranceInput.Location = new Point(91, 149);
             c_ToleranceInput.Name = "c_ToleranceInput";
-            c_ToleranceInput.Size = new Size(613, 23);
+            c_ToleranceInput.Size = new Size(415, 23);
             c_ToleranceInput.Suffix = "%";
             c_ToleranceInput.TabIndex = 13;
             c_ToleranceInput.Tag = "toggleable";
@@ -228,7 +225,7 @@
             c_MaxIterationsInput.Location = new Point(91, 195);
             c_MaxIterationsInput.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
             c_MaxIterationsInput.Name = "c_MaxIterationsInput";
-            c_MaxIterationsInput.Size = new Size(613, 23);
+            c_MaxIterationsInput.Size = new Size(415, 23);
             c_MaxIterationsInput.TabIndex = 14;
             c_MaxIterationsInput.Tag = "toggleable";
             c_MaxIterationsInput.TextAlign = HorizontalAlignment.Right;
@@ -261,7 +258,7 @@
             // c_MainButton
             // 
             c_MainButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            c_MainButton.Location = new Point(3, 453);
+            c_MainButton.Location = new Point(3, 287);
             c_MainButton.Name = "c_MainButton";
             c_MainButton.Size = new Size(807, 32);
             c_MainButton.TabIndex = 10;
@@ -270,46 +267,32 @@
             // 
             // c_ThumbnailPictureBox
             // 
-            c_ThumbnailPictureBox.Anchor = AnchorStyles.None;
             c_ThumbnailPictureBox.BackColor = SystemColors.ControlDark;
-            c_ThumbnailPictureBox.Location = new Point(307, 26);
+            c_ThumbnailPictureBox.Cursor = Cursors.No;
+            c_ThumbnailPictureBox.Image = Resources.Images.thumbnail_placeholder;
+            c_ThumbnailPictureBox.Location = new Point(3, 3);
             c_ThumbnailPictureBox.Name = "c_ThumbnailPictureBox";
             c_ThumbnailPictureBox.Size = new Size(192, 108);
             c_ThumbnailPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
             c_ThumbnailPictureBox.TabIndex = 0;
             c_ThumbnailPictureBox.TabStop = false;
             // 
-            // c_ThumbnailTablePanel
-            // 
-            c_ThumbnailTablePanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            c_ThumbnailTablePanel.BackColor = Color.Transparent;
-            c_ThumbnailTablePanel.ColumnCount = 1;
-            c_ThumbnailTablePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            c_ThumbnailTablePanel.Controls.Add(c_ThumbnailPictureBox, 0, 0);
-            c_ThumbnailTablePanel.Location = new Point(3, 287);
-            c_ThumbnailTablePanel.Name = "c_ThumbnailTablePanel";
-            c_ThumbnailTablePanel.RowCount = 1;
-            c_ThumbnailTablePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            c_ThumbnailTablePanel.Size = new Size(807, 160);
-            c_ThumbnailTablePanel.TabIndex = 11;
-            // 
             // EncodingQueuePanel
             // 
             AllowDrop = true;
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            Controls.Add(c_ThumbnailTablePanel);
+            Controls.Add(c_ThumbnailPictureBox);
             Controls.Add(c_MainButton);
             Controls.Add(_controlsTable);
             Name = "EncodingQueuePanel";
-            Size = new Size(813, 488);
+            Size = new Size(813, 322);
             _controlsTable.ResumeLayout(false);
             _controlsTable.PerformLayout();
             ((ISupportInitialize)c_TargetSizeInput).EndInit();
             ((ISupportInitialize)c_ToleranceInput).EndInit();
             ((ISupportInitialize)c_MaxIterationsInput).EndInit();
             ((ISupportInitialize)c_ThumbnailPictureBox).EndInit();
-            c_ThumbnailTablePanel.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -332,6 +315,5 @@
         private Label label2;
         private Button c_MainButton;
         private PictureBox c_ThumbnailPictureBox;
-        private TableLayoutPanel c_ThumbnailTablePanel;
     }
 }

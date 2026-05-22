@@ -9,11 +9,10 @@ public sealed class VideoSizeBelowTargetSizeException : Exception
 
     public VideoSizeBelowTargetSizeException(string? message, Exception inner) : base(message, inner) { }
 
-    public static void ThrowIf(
-        [DoesNotReturnIf(true)] bool predicate,
-        string?                      message = null,
-        [CallerArgumentExpression(nameof(predicate))]
-        string? expression = null)
+    public static void ThrowIf([DoesNotReturnIf(true)] bool predicate,
+                               string?                      message = null,
+                               [CallerArgumentExpression(nameof(predicate))]
+                               string? expression = null)
     {
         if (predicate)
         {
@@ -21,11 +20,10 @@ public sealed class VideoSizeBelowTargetSizeException : Exception
         }
     }
 
-    public static void ThrowUnless(
-        [DoesNotReturnIf(false)] bool predicate,
-        string?                       message = null,
-        [CallerArgumentExpression(nameof(predicate))]
-        string? expression = null)
+    public static void ThrowUnless([DoesNotReturnIf(false)] bool predicate,
+                                   string?                       message = null,
+                                   [CallerArgumentExpression(nameof(predicate))]
+                                   string? expression = null)
     {
         if (!predicate)
         {

@@ -60,15 +60,18 @@
   </resheader>
   <assembly alias="System.Windows.Forms" name="System.Windows.Forms, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
   <data name="logo" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>C:\Users\reese\Documents\Projects\.cs\Squash\Squash\Resources\logo.png;System.Drawing.Bitmap, System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51</value>
+    <value>Images\logo.png;System.Drawing.Bitmap, System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51</value>
   </data>
   <data name="help" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>C:\Users\reese\Documents\Projects\.cs\Squash\Squash\Resources\Images\help.png;System.Drawing.Bitmap, System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51</value>
+    <value>Images\help.png;System.Drawing.Bitmap, System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51</value>
   </data>
   <data name="cog" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>C:\Users\reese\Documents\Projects\.cs\Squash\Squash\Resources\Images\cog.png;System.Drawing.Bitmap, System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51</value>
+    <value>Images\cog.png;System.Drawing.Bitmap, System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51</value>
   </data>
   <data name="film-add" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>C:\Users\reese\Documents\Projects\.cs\Squash\Squash\Resources\Images\film-add.png;System.Drawing.Bitmap, System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51</value>
+    <value>Images\film-add.png;System.Drawing.Bitmap, System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51</value>
+  </data>
+  <data name="thumbnail-placeholder" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Images\thumbnail-placeholder.png;System.Drawing.Bitmap, System.Drawing.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51</value>
   </data>
 </root>

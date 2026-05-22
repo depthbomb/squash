@@ -1,4 +1,6 @@
 using System.Text;
+using Windows.System;
+using Windows.Storage;
 using System.Text.RegularExpressions;
 
 namespace Squash.Lib;
@@ -205,6 +207,30 @@ public sealed class FilePath : IEquatable<FilePath>, IComparable<FilePath>
     }
 
     public IEnumerable<FilePath> RGlob(string pattern) => Glob("**/" + pattern);
+
+    public async Task<IStorageFile> ToStoragePathAsync() => await StorageFile.GetFileFromPathAsync(_path);
+
+    public async Task LaunchFileAsync()
+    {
+        if (!IsFile())
+        {
+            throw new InvalidOperationException("File path must be a file.");
+        }
+
+        var sf = await ToStoragePathAsync();
+
+        await Launcher.LaunchFileAsync(sf);
+    }
+
+    public async Task LaunchFolderPathAsync()
+    {
+        if (!IsDir())
+        {
+            throw new InvalidOperationException("File path must be a directory.");
+        }
+
+        await Launcher.LaunchFolderPathAsync(_path);
+    }
 
     private static string GlobToRegex(string glob)
     {
