@@ -1,5 +1,6 @@
 ﻿using WinRT.Interop;
 using Windows.Storage.Pickers;
+using Microsoft.Windows.AppNotifications;
 
 namespace Squash.Controls;
 
@@ -175,6 +176,8 @@ public partial class EncodingQueuePanel : UserControl
         catch (Exception ex) when (ex is UnableToReachTargetSizeException or VideoSizeBelowTargetSizeException)
         {
             MessageBox.Show(ex.Message, "Operation complete", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+            await AppNotificationManager.Default.RemoveAllAsync();
         }
         finally
         {

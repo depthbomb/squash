@@ -1,6 +1,6 @@
+using Squash.Interop;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
-using Squash.Interop;
 
 namespace Squash.Forms;
 
@@ -95,6 +95,7 @@ public partial class MainFormV2 : Form
         _encoder.CancelEncoding();
 
         await AppNotificationManager.Default.RemoveAllAsync();
+
         AppNotificationManager.Default.Unregister();
     }
     #endregion
@@ -104,6 +105,9 @@ public partial class MainFormV2 : Form
     {
         Native.PreventSleep();
         Native.SetTaskbarIndeterminate(this);
+
+        if (!Settings.Default.EnableNotifications)
+            return;
 
         _notificationTag      = Guid.NewGuid().ToString("B");
         _notificationSequence = 1;
@@ -141,6 +145,11 @@ public partial class MainFormV2 : Form
         }
         else
         {
+            Native.SetTaskbarProgress(this, e.ProgressPercent, 100);
+
+            if (!Settings.Default.EnableNotifications)
+                return;
+
             var prog = new AppNotificationProgressData((uint)++_notificationSequence)
             {
                 Title  = "Encoding...",
@@ -149,8 +158,6 @@ public partial class MainFormV2 : Form
             };
 
             await AppNotificationManager.Default.UpdateAsync(prog, _notificationTag, NotificationGroup);
-
-            Native.SetTaskbarProgress(this, e.ProgressPercent, 100);
         }
     }
 
@@ -168,12 +175,26 @@ public partial class MainFormV2 : Form
 
         if (res.Success)
         {
-            var notification = new AppNotificationBuilder()
-                               .AddText($"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
-                                        $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).")
-                               .BuildNotification();
+            if (!Settings.Default.EnableNotifications)
+            {
+                MessageBox.Show(
+                    this,
+                    $"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
+                    $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).",
+                    "Operation complete",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+            else
+            {
+                var notification = new AppNotificationBuilder()
+                                   .AddText($"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
+                                            $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).")
+                                   .BuildNotification();
 
-            AppNotificationManager.Default.Show(notification);
+                AppNotificationManager.Default.Show(notification);
+            }
         }
         else
         {
