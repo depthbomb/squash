@@ -28,7 +28,6 @@
     "updateSource": {
         "type": "github",
         "repository": "depthbomb/squash",
-        "assetNamePattern": "^app\\-package\\.zip$",
         "includePrerelease": false
     }
 }

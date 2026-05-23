@@ -12,5 +12,5 @@ bin/
 obj/
 
 Deployment/out/
-Deployment/stamper.exe
+Deployment/kit.exe
 Deployment/updater.exe
