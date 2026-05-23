@@ -43,7 +43,7 @@ public class ThumbnailService
         psi.ArgumentList.Add("-i");
         psi.ArgumentList.Add(videoFilePath.FullPath);
         psi.ArgumentList.Add("-vf");
-        psi.ArgumentList.Add("thumbnail");
+        psi.ArgumentList.Add("thumbnail,scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720");
         psi.ArgumentList.Add("-frames:v");
         psi.ArgumentList.Add("1");
         psi.ArgumentList.Add(thumbnailFilePath.FullPath);
