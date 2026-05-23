@@ -72,6 +72,7 @@ partial class MainFormV2
         MinimumSize = new Size(800, 375);
         Name = "MainFormV2";
         SizeGripStyle = SizeGripStyle.Hide;
+        StartPosition = FormStartPosition.CenterScreen;
         Text = "Squash";
         c_StatusStrip.ResumeLayout(false);
         c_StatusStrip.PerformLayout();
