@@ -16,12 +16,14 @@ public partial class MainFormV2 : Form
     private readonly PersistentStateService           _persistentState;
     private readonly EncodeService                    _encoder;
     private readonly BinaryLocatorService             _binaryLocator;
+    private readonly ThumbnailService                 _thumbnail;
     private readonly FirstRunTaskDialogService        _firstRunTaskDialog;
     private readonly MissingBinariesTaskDialogService _missingBinariesTaskDialog;
 
     public MainFormV2(PersistentStateService           persistentState,
                       EncodeService                    encoder,
                       BinaryLocatorService             binaryLocator,
+                      ThumbnailService                 thumbnail,
                       EncodingQueuePanel               encodingQueuePanel,
                       SettingsPanel                    settingsPanel,
                       AboutPanel                       aboutPanel,
@@ -31,6 +33,7 @@ public partial class MainFormV2 : Form
         _persistentState           = persistentState;
         _encoder                   = encoder;
         _binaryLocator             = binaryLocator;
+        _thumbnail                 = thumbnail;
         _firstRunTaskDialog        = firstRunTaskDialog;
         _missingBinariesTaskDialog = missingBinariesTaskDialog;
 
@@ -152,8 +155,8 @@ public partial class MainFormV2 : Form
 
             var prog = new AppNotificationProgressData((uint)++_notificationSequence)
             {
-                Title = e.ProgressStatus,
-                Value = e.ProgressPercent / 100.0,
+                Title  = e.ProgressStatus,
+                Value  = e.ProgressPercent / 100.0,
                 Status = $"Iteration {e.CurrentIteration} of {e.MaxIterations}"
             };
 
@@ -188,9 +191,11 @@ public partial class MainFormV2 : Form
             }
             else
             {
+                var thumbnail = await _thumbnail.GetVideoThumbnailAsync(res.FilePath.FullPath, FilePath.TempDir());
                 var notification = new AppNotificationBuilder()
                                    .AddText($"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
                                             $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).")
+                                   .SetHeroImage(new Uri(thumbnail.FullPath))
                                    .BuildNotification();
 
                 AppNotificationManager.Default.Show(notification);

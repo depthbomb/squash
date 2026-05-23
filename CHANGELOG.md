@@ -1,3 +1,14 @@
+# 05/22/2026
+
+## 3.2.1
+
+- Fixed notifications displaying when _Enable notifications_ is disabled
+- Fixed a blank progress notification being displayed if the input file is already smaller than the target size
+- Improved the formatting of progress notifications
+- Generated thumbnails are now cropped to a 16:9 ratio
+- Completion notification now displays a thumbnail of the output file
+- Removed _Allow multiple instances_ setting
+
 # 05/21/2026
 
 ## 3.2.0
