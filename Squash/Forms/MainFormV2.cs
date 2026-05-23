@@ -127,7 +127,7 @@ public partial class MainFormV2 : Form
 
         notification.Progress = new AppNotificationProgressData((uint)++_notificationSequence)
         {
-            Title  = "Encoding...",
+            Title  = "Starting...",
             Status = "Starting...",
             Value  = 0.0
         };
@@ -152,9 +152,9 @@ public partial class MainFormV2 : Form
 
             var prog = new AppNotificationProgressData((uint)++_notificationSequence)
             {
-                Title  = "Encoding...",
-                Status = e.ProgressStatus,
-                Value  = e.ProgressPercent / 100.0
+                Title = e.ProgressStatus,
+                Value = e.ProgressPercent / 100.0,
+                Status = $"Iteration {e.CurrentIteration} of {e.MaxIterations}"
             };
 
             await AppNotificationManager.Default.UpdateAsync(prog, _notificationTag, NotificationGroup);

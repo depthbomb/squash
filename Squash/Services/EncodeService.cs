@@ -4,13 +4,17 @@ namespace Squash.Services;
 
 public class ProgressEventArgs : EventArgs
 {
-    public int    ProgressPercent { get; }
-    public string ProgressStatus  { get; }
+    public int    CurrentIteration { get; }
+    public int    MaxIterations    { get; }
+    public int    ProgressPercent  { get; }
+    public string ProgressStatus   { get; }
 
-    public ProgressEventArgs(int percent, string status)
+    public ProgressEventArgs(int currentIteration, int maxIterations, int percent, string status)
     {
-        ProgressPercent = percent;
-        ProgressStatus  = status;
+        CurrentIteration = currentIteration;
+        MaxIterations    = maxIterations;
+        ProgressPercent  = percent;
+        ProgressStatus   = status;
     }
 }
 
@@ -123,7 +127,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
                 iteration++;
 
-                Progress?.Invoke(this, new ProgressEventArgs(0, $"Iteration {iteration}/{maxIterations} at {currentBitrate:F0} kbps"));
+                Progress?.Invoke(this, new ProgressEventArgs(iteration, maxIterations, 0, $"Encoding at {currentBitrate:F0} kbps"));
 
                 await EncodeVideoAsync(
                     ffmpegPath,
@@ -333,9 +337,9 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             {
                 var percent = ComputePercent(progressData, duration);
                 var status  = BuildProgressStatus(progressData, duration);
-                var title   = $"Iteration {iteration}/{maxIterations}{(status.IsNullOrWhiteSpace() ? "" : $" - {status}")}";
+                var title   = $"{(status.IsNullOrWhiteSpace() ? "" : status)}";
 
-                Progress?.Invoke(this, new ProgressEventArgs(percent, title));
+                Progress?.Invoke(this, new ProgressEventArgs(iteration, maxIterations, percent, title));
             }
 
             return Task.CompletedTask;
@@ -356,7 +360,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             throw new InvalidOperationException(message);
         }
 
-        Progress?.Invoke(this, new ProgressEventArgs(100, $"Iteration {iteration}/{maxIterations} complete"));
+        Progress?.Invoke(this, new ProgressEventArgs(iteration, maxIterations, 100, "Iteration complete"));
     }
 
     private static async Task<ProcessResult> ExecuteProcessAsync(string              executable,
@@ -431,7 +435,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             return 0;
         }
 
-        return (int)Math.Clamp((micros / 1_000_000.0) / duration * 100.0, 0.0, 100.0);
+        return (int)Math.Clamp(micros / 1_000_000.0 / duration * 100.0, 0.0, 100.0);
     }
 
     private static string BuildProgressStatus(Dictionary<string, string> progress, double duration)
@@ -526,7 +530,21 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
     private static string FormatDuration(double totalSeconds)
     {
         var t = TimeSpan.FromSeconds(Math.Max(0.0, totalSeconds));
-        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes:D2}m {t.Seconds:D2}s" : $"{t.Minutes}m {t.Seconds:D2}s";
+
+        var parts = new List<string>();
+
+        if (t.Days > 0)
+            parts.Add($"{t.Days}d");
+
+        if (t.Hours > 0)
+            parts.Add($"{t.Hours}h");
+
+        if (t.Minutes > 0)
+            parts.Add($"{t.Minutes}m");
+
+        parts.Add($"{t.Seconds}s");
+
+        return string.Join(" ", parts);
     }
 
     private async Task<string> RequireBinaryPathAsync(string name, string missingMessage)
