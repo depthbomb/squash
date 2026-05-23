@@ -13,13 +13,6 @@ public partial class SettingsPanel : UserControl
             false,
             DataSourceUpdateMode.OnPropertyChanged
         );
-        c_AllowMultipleInstancesCheckBox.DataBindings.Add(
-            "Checked",
-            Settings.Default,
-            nameof(Settings.Default.AllowMultipleInstances),
-            false,
-            DataSourceUpdateMode.OnPropertyChanged
-        );
         c_EnableAdditionalQualityPresetsCheckBox.DataBindings.Add(
             "Checked",
             Settings.Default,

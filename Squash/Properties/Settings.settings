@@ -5,9 +5,6 @@
     <Setting Name="EnableNotifications" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
-    <Setting Name="AllowMultipleInstances" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">False</Value>
-    </Setting>
     <Setting Name="EnableAdditionalQualityPresets" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>

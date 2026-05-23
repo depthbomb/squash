@@ -13,18 +13,14 @@ internal static class Bootstrapper
 
         #region App Instance Setup
         var instance = AppInstance.FindOrRegisterForKey(GlobalShared.MutexName);
-
-        if (!Settings.Default.AllowMultipleInstances)
+        if (!instance.IsCurrent)
         {
-            if (!instance.IsCurrent)
-            {
-                var args = AppInstance.GetCurrent().GetActivatedEventArgs();
+            var args = AppInstance.GetCurrent().GetActivatedEventArgs();
 
-                _ = instance.RedirectActivationToAsync(args);
+            _ = instance.RedirectActivationToAsync(args);
 
-                Application.Exit();
-                return;
-            }
+            Application.Exit();
+            return;
         }
         #endregion
 
@@ -78,7 +74,6 @@ internal static class Bootstrapper
             if (res == restartButton)
             {
                 Application.Restart();
-                Application.Exit();
             }
         };
         Application.ApplicationExit += (_, _) =>
