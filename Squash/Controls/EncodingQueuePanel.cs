@@ -1,6 +1,9 @@
 ﻿using WinRT.Interop;
+using Caprine.FilePath;
 using Windows.Storage.Pickers;
 using Microsoft.Windows.AppNotifications;
+using Windows.Storage;
+using Windows.System;
 
 namespace Squash.Controls;
 
@@ -73,7 +76,9 @@ public partial class EncodingQueuePanel : UserControl
     {
         if (HasInputFile)
         {
-            await FilePath.From(c_InputFileTextBox.Text).LaunchFileAsync();
+            var videoPath = await StorageFile.GetFileFromPathAsync(c_InputFileTextBox.Text);
+
+            await Launcher.LaunchFileAsync(videoPath);
         }
     }
 

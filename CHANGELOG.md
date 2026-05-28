@@ -1,3 +1,9 @@
+# 05/28/2026
+
+## 3.2.2
+
+- The application's window will now open at the center of the active screen
+
 # 05/22/2026
 
 ## 3.2.1

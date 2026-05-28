@@ -1,4 +1,5 @@
 using Squash.Interop;
+using Caprine.FilePath;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
 

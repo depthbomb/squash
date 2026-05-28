@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using Caprine.FilePath;
+using System.Text.Json;
 
 namespace Squash.Services;
 
@@ -68,7 +69,7 @@ public sealed class PersistentStateService
     {
         try
         {
-            if (!_filePath.Exists())
+            if (!_filePath.Exists)
             {
                 return [];
             }

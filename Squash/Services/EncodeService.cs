@@ -1,3 +1,4 @@
+using Caprine.FilePath;
 using System.Globalization;
 
 namespace Squash.Services;
@@ -54,7 +55,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                                                              int      maxIterations,
                                                              int      qualityPreset)
     {
-        if (!inputFile.Exists())
+        if (!inputFile.Exists)
             throw new ArgumentException("Input file does not exist.");
 
         if (targetSizeMb < 1)

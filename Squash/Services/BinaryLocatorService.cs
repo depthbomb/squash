@@ -1,3 +1,4 @@
+using Caprine.FilePath;
 using System.Collections.Concurrent;
 
 namespace Squash.Services;
@@ -24,7 +25,7 @@ public class BinaryLocatorService
     {
         // 1.) check for binary alongside the assembly
         var localPath = FilePath.From(AppDomain.CurrentDomain.BaseDirectory) / $"{name}.exe";
-        if (localPath.Exists() && localPath.IsFile())
+        if (localPath is { Exists: true, IsFile: true })
         {
             return localPath;
         }

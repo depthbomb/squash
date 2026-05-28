@@ -1,3 +1,5 @@
+using Caprine.FilePath;
+
 namespace Squash.Services;
 
 public class ExtractService(BinaryLocatorService binaryLocator)

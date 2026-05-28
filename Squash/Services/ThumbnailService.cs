@@ -1,4 +1,6 @@
-﻿namespace Squash.Services;
+﻿using Caprine.FilePath;
+
+namespace Squash.Services;
 
 public class ThumbnailService
 {
@@ -13,14 +15,14 @@ public class ThumbnailService
                                                        FilePath          thumbnailOutputPath,
                                                        CancellationToken ct = default)
     {
-        if (!thumbnailOutputPath.IsDir())
+        if (!thumbnailOutputPath.IsDirectory)
         {
             throw new InvalidOperationException($"{nameof(thumbnailOutputPath)} should be a directory.");
         }
 
         var thumbnailFileName = $"{videoFilePath.Name.CreateGuidFrom("B")}.jpg";
         var thumbnailFilePath = thumbnailOutputPath / thumbnailFileName;
-        if (thumbnailFilePath.Exists())
+        if (thumbnailFilePath.Exists)
         {
             return thumbnailFilePath;
         }
@@ -58,7 +60,7 @@ public class ThumbnailService
             throw new InvalidOperationException($"FFmpeg failed: {error}");
         }
 
-        if (!thumbnailFilePath.Exists())
+        if (!thumbnailFilePath.Exists)
         {
             throw new Exception("Could not create thumbnail.");
         }
