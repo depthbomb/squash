@@ -11,7 +11,7 @@
         <ApplicationIcon>..\resources\icon.ico</ApplicationIcon>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         
-        <Version>3.2.2.0</Version>
+        <Version>3.2.3.0</Version>
         <FileVersion>$(Version)</FileVersion>
         
         <Company>Caprine Logic</Company>

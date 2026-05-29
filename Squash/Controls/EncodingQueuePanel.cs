@@ -1,9 +1,9 @@
 ﻿using WinRT.Interop;
+using Windows.System;
+using Windows.Storage;
 using Caprine.FilePath;
 using Windows.Storage.Pickers;
 using Microsoft.Windows.AppNotifications;
-using Windows.Storage;
-using Windows.System;
 
 namespace Squash.Controls;
 
@@ -143,6 +143,7 @@ public partial class EncodingQueuePanel : UserControl
                 c_ThumbnailPictureBox.Cursor = Cursors.Hand;
             }
 
+            await SetVideoSizeAsync();
             await SetThumbnailAsync();
         }
 
@@ -260,6 +261,18 @@ public partial class EncodingQueuePanel : UserControl
             FilePath.TempDir());
 
         c_ThumbnailPictureBox.Image = Image.FromFile(image.FullPath);
+    }
+
+    private async Task SetVideoSizeAsync()
+    {
+        var videoLength = await Task.Run(() =>
+        {
+            var videoFile = FilePath.From(c_InputFileTextBox.Text);
+
+            return videoFile.FileInfo().Length.ToFileSizeString();
+        });
+
+        c_VideoSizeLabel.Text = videoLength;
     }
     #endregion
 }

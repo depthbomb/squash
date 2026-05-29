@@ -45,6 +45,7 @@
             label2 = new Label();
             c_MainButton = new Button();
             c_ThumbnailPictureBox = new PictureBox();
+            c_VideoSizeLabel = new Label();
             _controlsTable.SuspendLayout();
             ((ISupportInitialize)c_TargetSizeInput).BeginInit();
             ((ISupportInitialize)c_ToleranceInput).BeginInit();
@@ -277,11 +278,22 @@
             c_ThumbnailPictureBox.TabIndex = 0;
             c_ThumbnailPictureBox.TabStop = false;
             // 
+            // c_VideoSizeLabel
+            // 
+            c_VideoSizeLabel.Font = new Font("Cascadia Code", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            c_VideoSizeLabel.Location = new Point(3, 114);
+            c_VideoSizeLabel.Name = "c_VideoSizeLabel";
+            c_VideoSizeLabel.Size = new Size(192, 23);
+            c_VideoSizeLabel.TabIndex = 11;
+            c_VideoSizeLabel.Text = "...";
+            c_VideoSizeLabel.TextAlign = ContentAlignment.MiddleCenter;
+            // 
             // EncodingQueuePanel
             // 
             AllowDrop = true;
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
+            Controls.Add(c_VideoSizeLabel);
             Controls.Add(c_ThumbnailPictureBox);
             Controls.Add(c_MainButton);
             Controls.Add(_controlsTable);
@@ -315,5 +327,6 @@
         private Label label2;
         private Button c_MainButton;
         private PictureBox c_ThumbnailPictureBox;
+        private Label c_VideoSizeLabel;
     }
 }

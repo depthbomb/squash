@@ -1,3 +1,9 @@
+# 05/29/2026
+
+## 3.2.3
+
+- The current input file's size will be displayed under the thumbnail preview
+
 # 05/28/2026
 
 ## 3.2.2
