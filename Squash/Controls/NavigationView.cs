@@ -1,3 +1,6 @@
+using Squash.Theme;
+using Windows.UI.ViewManagement;
+
 namespace Squash.Controls;
 
 public sealed class NavigationView : UserControl
@@ -40,7 +43,7 @@ public sealed class NavigationView : UserControl
         _split.SplitterWidth    = 1;
         _split.IsSplitterFixed  = true;
         _split.SplitterDistance = 200;
-        _split.BackColor        = ColorTranslator.FromHtml("#d5d5d5");
+        _split.BackColor        = ColorTranslator.FromHtml("#d7d7d7");
 
         _navPanel.Dock      = DockStyle.Fill;
         _navPanel.BackColor = SystemColors.Window;
@@ -152,6 +155,16 @@ public sealed class NavigationView : UserControl
         return lbl;
     }
 
+    public void UpdateAccentColors()
+    {
+        if (SelectedIndex < 0 || SelectedIndex >= _items.Count)
+            return;
+
+        var lbl = _items[SelectedIndex].Label;
+        lbl.BackColor = AccentHelper.GetBackground(UIColorType.Accent);
+        lbl.ForeColor = AccentHelper.GetForeground(UIColorType.Accent);
+    }
+
     private void SetActive(int index)
     {
         if (_items.Count == 0)
@@ -174,8 +187,8 @@ public sealed class NavigationView : UserControl
 
         var current = _items[SelectedIndex];
         current.Content.Visible = true;
-        current.Label.BackColor = SystemColors.Highlight;
-        current.Label.ForeColor = SystemColors.HighlightText;
+        current.Label.BackColor = AccentHelper.GetBackground(UIColorType.Accent);
+        current.Label.ForeColor = AccentHelper.GetForeground(UIColorType.Accent);
     }
 
     private void ReflowNav()

@@ -1,7 +1,4 @@
-﻿using Caprine.FilePath;
-using Squash.Core.Services;
-
-namespace Squash.Services;
+﻿namespace Squash.Services;
 
 public class MissingBinariesTaskDialogService
 {

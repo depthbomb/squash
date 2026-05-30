@@ -1,6 +1,5 @@
-using Squash.Core;
 using Squash.Interop;
-using Squash.Core.Services;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Windows.AppLifecycle;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,27 +27,28 @@ internal static class Bootstrapper
 
         Native.SetCurrentProcessExplicitAppUserModelId(GlobalShared.Product.AppUserModelId);
 
-        #region Service Registration
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddHttpClient("Default", c => c.DefaultRequestHeaders.Add("User-Agent", "Squash"));
-        // Forms
-        serviceCollection.AddSingleton<MainFormV2>();
-        // Controls
-        serviceCollection.AddSingleton<EncodingQueuePanel>();
-        serviceCollection.AddSingleton<SettingsPanel>();
-        serviceCollection.AddSingleton<AboutPanel>();
-        // Services
-        serviceCollection.AddSingleton<BinaryLocatorService>();
-        serviceCollection.AddSingleton<PersistentStateService>();
-        serviceCollection.AddSingleton<DownloadService>();
-        serviceCollection.AddSingleton<ExtractService>();
-        serviceCollection.AddSingleton<ThumbnailService>();
-        serviceCollection.AddSingleton<EncodeService>();
-        serviceCollection.AddTransient<MissingBinariesTaskDialogService>();
-        serviceCollection.AddTransient<FirstRunTaskDialogService>();
-
-        var services = serviceCollection.BuildServiceProvider();
-        #endregion
+        var host = Host.CreateDefaultBuilder()
+                       .ConfigureServices(s =>
+                       {
+                           // Forms
+                           s.AddSingleton<MainFormV2>();
+                           // Controls
+                           s.AddSingleton<EncodingQueuePanel>();
+                           s.AddSingleton<SettingsPanel>();
+                           s.AddSingleton<AboutPanel>();
+                           // Services
+                           s.AddSingleton<BinaryLocatorService>();
+                           s.AddSingleton<PersistentStateService>();
+                           s.AddSingleton<DownloadService>();
+                           s.AddSingleton<ExtractService>();
+                           s.AddSingleton<ThumbnailService>();
+                           s.AddSingleton<EncodeService>();
+                           s.AddTransient<MissingBinariesTaskDialogService>();
+                           s.AddTransient<FirstRunTaskDialogService>();
+                           // HTTP clients
+                           s.AddHttpClient("Default", c => c.DefaultRequestHeaders.Add("User-Agent", "Squash"));
+                       })
+                       .Build();
 
         Application.ThreadException += (_, args) =>
         {
@@ -84,9 +84,9 @@ internal static class Bootstrapper
             instance.UnregisterKey();
         };
 
-        instance.Activated += (_, _) => services.GetRequiredService<MainFormV2>().BringToFrontFromActivation();
+        instance.Activated += (_, _) => host.Services.GetRequiredService<MainFormV2>().BringToFrontFromActivation();
 
         ApplicationConfiguration.Initialize();
-        Application.Run(services.GetRequiredService<MainFormV2>());
+        Application.Run(host.Services.GetRequiredService<MainFormV2>());
     }
 }

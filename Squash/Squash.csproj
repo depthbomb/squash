@@ -11,7 +11,7 @@
         <ApplicationIcon>..\resources\icon.ico</ApplicationIcon>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         
-        <Version>3.2.3.0</Version>
+        <Version>3.2.4.0</Version>
         <FileVersion>$(Version)</FileVersion>
         
         <Company>Caprine Logic</Company>
@@ -30,6 +30,10 @@
         
         <StartupObject>Squash.Bootstrapper</StartupObject>
     </PropertyGroup>
+    
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+      <DebugType>none</DebugType>
+    </PropertyGroup>
 
     <ItemGroup>
       <None Include="..\resources\icon.ico">
@@ -39,9 +43,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Caprine.FilePath" Version="0.1.0" />
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
-      <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
+      <PackageReference Include="Caprine.FilePath" Version="0.1.1" />
+      <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
       <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.275">
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

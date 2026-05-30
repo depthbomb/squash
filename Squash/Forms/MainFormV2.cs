@@ -1,7 +1,5 @@
+using Squash.Theme;
 using Squash.Interop;
-using Caprine.FilePath;
-using Squash.Core.Services;
-using Squash.Core.Extensions;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
 
@@ -59,6 +57,7 @@ public partial class MainFormV2 : Form
 
         #region Events
         AppNotificationManager.Default.NotificationInvoked += OnNotificationInvoked;
+        AccentHelper.ThemeUpdated                          += (_, _) => c_NavigationView.UpdateAccentColors();
         #endregion
 
         AppNotificationManager.Default.Register();

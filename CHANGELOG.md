@@ -1,3 +1,9 @@
+# 05/30/2026
+
+## 3.2.4
+
+- Side navigation now uses your system's accent color
+
 # 05/29/2026
 
 ## 3.2.3
