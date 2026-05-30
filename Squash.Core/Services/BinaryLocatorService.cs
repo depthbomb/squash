@@ -1,7 +1,8 @@
 using Caprine.FilePath;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
-namespace Squash.Services;
+namespace Squash.Core.Services;
 
 public class BinaryLocatorService
 {

@@ -1,4 +1,6 @@
+using Squash.Core;
 using Squash.Interop;
+using Squash.Core.Services;
 using Microsoft.Windows.AppLifecycle;
 using Microsoft.Extensions.DependencyInjection;
 

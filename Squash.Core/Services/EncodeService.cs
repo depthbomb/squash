@@ -1,7 +1,11 @@
 using Caprine.FilePath;
+using Squash.Core.Exceptions;
+using Squash.Core.Extensions;
+using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 
-namespace Squash.Services;
+namespace Squash.Core.Services;
 
 public class ProgressEventArgs : EventArgs
 {

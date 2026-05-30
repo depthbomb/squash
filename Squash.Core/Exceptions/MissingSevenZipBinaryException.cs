@@ -1,13 +1,16 @@
-﻿namespace Squash.Exceptions;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+
+namespace Squash.Core.Exceptions;
 
 [Serializable]
-public sealed class UnableToReachTargetSizeException : Exception
+public sealed class MissingSevenZipBinaryException : Exception
 {
-    public UnableToReachTargetSizeException() { }
+    public MissingSevenZipBinaryException() { }
 
-    public UnableToReachTargetSizeException(string? message) : base(message) { }
+    public MissingSevenZipBinaryException(string? message) : base(message) { }
 
-    public UnableToReachTargetSizeException(string? message, Exception inner) : base(message, inner) { }
+    public MissingSevenZipBinaryException(string? message, Exception inner) : base(message, inner) { }
 
     public static void ThrowIf([DoesNotReturnIf(true)] bool predicate,
                                string?                      message = null,
@@ -32,13 +35,13 @@ public sealed class UnableToReachTargetSizeException : Exception
     }
 
     [DoesNotReturn]
-    public static void Throw() => throw new UnableToReachTargetSizeException();
+    public static void Throw() => throw new MissingSevenZipBinaryException();
 
     [DoesNotReturn]
-    public static void Throw(string? message) => throw new UnableToReachTargetSizeException(message);
+    public static void Throw(string? message) => throw new MissingSevenZipBinaryException(message);
 
     [DoesNotReturn]
-    public static void Throw(string? message, Exception inner) => throw new UnableToReachTargetSizeException(message, inner);
+    public static void Throw(string? message, Exception inner) => throw new MissingSevenZipBinaryException(message, inner);
 }
 
 

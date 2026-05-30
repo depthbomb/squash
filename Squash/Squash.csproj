@@ -50,6 +50,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Squash.Core\Squash.Core.csproj" />
       <ProjectReference Include="..\Squash.Lib\Squash.Lib.csproj" />
     </ItemGroup>
 

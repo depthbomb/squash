@@ -1,6 +1,6 @@
 ﻿global using Squash.Controls;
-global using Squash.Exceptions;
-global using Squash.Extensions;
+global using Squash.Core.Exceptions;
+global using Squash.Core.Extensions;
 global using Squash.Forms;
 global using Squash.Lib;
 global using Squash.Properties;

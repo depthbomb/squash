@@ -2,6 +2,7 @@
 using Windows.System;
 using Windows.Storage;
 using Caprine.FilePath;
+using Squash.Core.Services;
 using Windows.Storage.Pickers;
 using Microsoft.Windows.AppNotifications;
 

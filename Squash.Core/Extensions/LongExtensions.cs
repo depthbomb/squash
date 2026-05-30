@@ -1,4 +1,4 @@
-﻿namespace Squash.Extensions;
+﻿namespace Squash.Core.Extensions;
 
 public static class LongExtensions
 {

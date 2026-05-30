@@ -1,7 +1,8 @@
 ﻿using Caprine.FilePath;
+using Squash.Core.Extensions;
 using System.Text.Json;
 
-namespace Squash.Services;
+namespace Squash.Core.Services;
 
 public sealed class PersistentStateService
 {

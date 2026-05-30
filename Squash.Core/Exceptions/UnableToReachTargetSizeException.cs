@@ -1,13 +1,16 @@
-﻿namespace Squash.Exceptions;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+
+namespace Squash.Core.Exceptions;
 
 [Serializable]
-public sealed class VideoSizeBelowTargetSizeException : Exception
+public sealed class UnableToReachTargetSizeException : Exception
 {
-    public VideoSizeBelowTargetSizeException() { }
+    public UnableToReachTargetSizeException() { }
 
-    public VideoSizeBelowTargetSizeException(string? message) : base(message) { }
+    public UnableToReachTargetSizeException(string? message) : base(message) { }
 
-    public VideoSizeBelowTargetSizeException(string? message, Exception inner) : base(message, inner) { }
+    public UnableToReachTargetSizeException(string? message, Exception inner) : base(message, inner) { }
 
     public static void ThrowIf([DoesNotReturnIf(true)] bool predicate,
                                string?                      message = null,
@@ -32,13 +35,13 @@ public sealed class VideoSizeBelowTargetSizeException : Exception
     }
 
     [DoesNotReturn]
-    public static void Throw() => throw new VideoSizeBelowTargetSizeException();
+    public static void Throw() => throw new UnableToReachTargetSizeException();
 
     [DoesNotReturn]
-    public static void Throw(string? message) => throw new VideoSizeBelowTargetSizeException(message);
+    public static void Throw(string? message) => throw new UnableToReachTargetSizeException(message);
 
     [DoesNotReturn]
-    public static void Throw(string? message, Exception inner) => throw new VideoSizeBelowTargetSizeException(message, inner);
+    public static void Throw(string? message, Exception inner) => throw new UnableToReachTargetSizeException(message, inner);
 }
 
 

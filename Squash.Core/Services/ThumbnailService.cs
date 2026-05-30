@@ -1,6 +1,8 @@
 ﻿using Caprine.FilePath;
+using System.Diagnostics;
+using Squash.Core.Extensions;
 
-namespace Squash.Services;
+namespace Squash.Core.Services;
 
 public class ThumbnailService
 {

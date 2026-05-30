@@ -1,6 +1,6 @@
 using Caprine.FilePath;
 
-namespace Squash.Services;
+namespace Squash.Core.Services;
 
 public class DownloadService
 {

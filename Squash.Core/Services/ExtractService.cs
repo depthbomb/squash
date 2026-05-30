@@ -1,6 +1,8 @@
 using Caprine.FilePath;
+using Squash.Core.Exceptions;
+using System.Diagnostics;
 
-namespace Squash.Services;
+namespace Squash.Core.Services;
 
 public class ExtractService(BinaryLocatorService binaryLocator)
 {
