@@ -1,0 +1,10 @@
+release:
+  appDir: ..\Squash\bin\Publish
+  config: config.json
+  updater: updater.exe
+  outputDir: out
+  packageName: app-package.zip
+  installerCommand: iscc
+  installerArgs: '/DMyAppVersion={Version} /O"{OutputDir}" "setup.iss"'
+  installerPath: '{OutputDir}\squash-setup.exe'
+  updaterUpdateRequired: true
