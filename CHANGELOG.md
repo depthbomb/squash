@@ -1,3 +1,9 @@
+# 06/14/2026
+
+## 3.2.5
+
+- Updated UI visuals when a video is selected
+
 # 05/30/2026
 
 ## 3.2.4

@@ -306,7 +306,7 @@ public partial class EncodingQueuePanel : UserControl
 
         using var path = new GraphicsPath();
 
-        const float size = 550;
+        const float size = 600;
 
         path.AddEllipse(
             -size * 0.5f,

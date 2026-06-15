@@ -11,4 +11,8 @@
       <DebugType>none</DebugType>
     </PropertyGroup>
 
+    <ItemGroup>
+      <PackageReference Remove="Nerdbank.GitVersioning" />
+    </ItemGroup>
+
 </Project>

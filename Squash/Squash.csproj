@@ -11,7 +11,7 @@
         <ApplicationIcon>..\resources\icon.ico</ApplicationIcon>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         
-        <Version>3.2.4.0</Version>
+        <Version>3.2.5.0</Version>
         <FileVersion>$(Version)</FileVersion>
         
         <Company>Caprine Logic</Company>
@@ -50,6 +50,7 @@
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
       <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.2.0" />
+      <PackageReference Remove="Nerdbank.GitVersioning" />
     </ItemGroup>
 
     <ItemGroup>
@@ -109,5 +110,28 @@
         <LastGenOutput>Settings.Designer.cs</LastGenOutput>
       </None>
     </ItemGroup>
+
+    <Target Name="SetHash" AfterTargets="InitializeSourceControlInformation">
+
+        <Exec Command="git rev-parse HEAD" ConsoleToMSBuild="True" IgnoreExitCode="False">
+            <Output PropertyName="Revision" TaskParameter="ConsoleOutput" />
+        </Exec>
+
+        <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="True" IgnoreExitCode="False">
+            <Output PropertyName="RevisionShort" TaskParameter="ConsoleOutput" />
+        </Exec>
+
+        <ItemGroup>
+            <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+                <_Parameter1>GitHash</_Parameter1>
+                <_Parameter2>$(Revision)</_Parameter2>
+            </AssemblyAttribute>
+            <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+                <_Parameter1>GitHashShort</_Parameter1>
+                <_Parameter2>$(RevisionShort)</_Parameter2>
+            </AssemblyAttribute>
+        </ItemGroup>
+
+    </Target>
 
 </Project>
