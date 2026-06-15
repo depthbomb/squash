@@ -2,6 +2,7 @@
 using Windows.System;
 using Windows.Storage;
 using Windows.Storage.Pickers;
+using System.Drawing.Drawing2D;
 using Microsoft.Windows.AppNotifications;
 
 namespace Squash.Controls;
@@ -14,9 +15,16 @@ public partial class EncodingQueuePanel : UserControl
     private const string MainButtonInitialText = "&Squash it!";
     private const string MainButtonWorkingText = "&Cancel";
 
+    private Color                   _thumbnailColor = SystemColors.Control;
+    private CancellationTokenSource _thumbnailCts   = new();
+
     private readonly ThumbnailService _thumbnail;
     private readonly EncodeService    _encoder;
     private readonly Flag             _workingFlag = new(false);
+    private readonly HashSet<string> _videoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".mpeg", ".mpg"
+    };
 
     public EncodingQueuePanel(ThumbnailService thumbnail, EncodeService encoder)
     {
@@ -30,6 +38,7 @@ public partial class EncodingQueuePanel : UserControl
         {
             c_QualityPresetComboBox.Items.AddRange("3. Very slow, better quality", "4. Absurdly slow, better quality");
         }
+
         c_QualityPresetComboBox.SelectedIndex = 1;
 
         #region Control Events
@@ -48,6 +57,13 @@ public partial class EncodingQueuePanel : UserControl
         UpdateOutputFileBrowseButtonState();
         UpdateMainButtonState();
     }
+
+    #region Overrides of Control
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        DrawAccentedBackground(e.Graphics, _thumbnailColor, BackColor);
+    }
+    #endregion
 
     #region Control Event Handlers
     private void OnDragEnter(object? sender, DragEventArgs e)
@@ -89,15 +105,10 @@ public partial class EncodingQueuePanel : UserControl
 
         picker.SuggestedStartLocation = PickerLocationId.VideosLibrary;
         picker.ViewMode               = PickerViewMode.Thumbnail;
-        picker.FileTypeFilter.Add(".mp4");
-        picker.FileTypeFilter.Add(".mkv");
-        picker.FileTypeFilter.Add(".avi");
-        picker.FileTypeFilter.Add(".mov");
-        picker.FileTypeFilter.Add(".wmv");
-        picker.FileTypeFilter.Add(".webm");
-        picker.FileTypeFilter.Add(".flv");
-        picker.FileTypeFilter.Add(".mpeg");
-        picker.FileTypeFilter.Add(".mpg");
+        foreach (var ext in _videoExtensions)
+        {
+            picker.FileTypeFilter.Add(ext);
+        }
 
         var res = await picker.PickSingleFileAsync();
         if (res is null)
@@ -142,8 +153,12 @@ public partial class EncodingQueuePanel : UserControl
                 c_ThumbnailPictureBox.Cursor = Cursors.Hand;
             }
 
-            await SetVideoSizeAsync();
-            await SetThumbnailAsync();
+            await _thumbnailCts.CancelAsync();
+            _thumbnailCts = new CancellationTokenSource();
+
+            await Task.WhenAll(
+                SetVideoSizeAsync(),
+                SetThumbnailAsync(_thumbnailCts.Token));
         }
 
         UpdateOutputFileBrowseButtonState();
@@ -232,9 +247,7 @@ public partial class EncodingQueuePanel : UserControl
         c_MainButton.Text = MainButtonInitialText;
     }
 
-    private bool IsVideoFile(string path)
-        => Path.GetExtension(path).ToLowerInvariant() is
-            ".mp4" or ".mkv" or ".avi" or ".mov" or ".wmv" or ".webm" or ".flv" or ".mpeg" or ".mpg";
+    private bool IsVideoFile(string path) => _videoExtensions.Contains(Path.GetExtension(path));
 
     private string GetUniqueSquashedName(FilePath inputFile)
     {
@@ -253,13 +266,26 @@ public partial class EncodingQueuePanel : UserControl
         return $"{safeStem}{suffix}";
     }
 
-    private async Task SetThumbnailAsync()
+    private async Task SetThumbnailAsync(CancellationToken ct)
     {
         var image = await _thumbnail.GetVideoThumbnailAsync(
             FilePath.From(c_InputFileTextBox.Text),
-            FilePath.TempDir());
+            FilePath.TempDir(),
+            ct);
 
-        c_ThumbnailPictureBox.Image = Image.FromFile(image.FullPath);
+        ct.ThrowIfCancellationRequested();
+
+        var bytes    = await File.ReadAllBytesAsync(image.FullPath, ct);
+        var newImage = Image.FromStream(new MemoryStream(bytes));
+        var oldImage = c_ThumbnailPictureBox.Image;
+
+        c_ThumbnailPictureBox.Image = newImage;
+
+        oldImage?.Dispose();
+
+        _thumbnailColor = newImage.GetDominantColor(SystemColors.Control);
+
+        Invalidate();
     }
 
     private async Task SetVideoSizeAsync()
@@ -272,6 +298,28 @@ public partial class EncodingQueuePanel : UserControl
         });
 
         c_VideoSizeLabel.Text = videoLength;
+    }
+
+    private void DrawAccentedBackground(Graphics g, Color accent, Color background)
+    {
+        g.Clear(background);
+
+        using var path = new GraphicsPath();
+
+        const float size = 550;
+
+        path.AddEllipse(
+            -size * 0.5f,
+            -size * 0.5f,
+            size,
+            size);
+
+        using var brush = new PathGradientBrush(path);
+        brush.CenterColor    = Color.FromArgb(180, accent);
+        brush.SurroundColors = [Color.Transparent];
+        brush.CenterPoint    = new PointF(50, 50);
+
+        g.FillPath(brush, path);
     }
     #endregion
 }

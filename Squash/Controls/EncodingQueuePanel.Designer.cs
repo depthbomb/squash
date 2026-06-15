@@ -56,6 +56,7 @@
             // _controlsTable
             // 
             _controlsTable.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            _controlsTable.BackColor = Color.Transparent;
             _controlsTable.ColumnCount = 3;
             _controlsTable.ColumnStyles.Add(new ColumnStyle());
             _controlsTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -280,6 +281,7 @@
             // 
             // c_VideoSizeLabel
             // 
+            c_VideoSizeLabel.BackColor = Color.Transparent;
             c_VideoSizeLabel.Font = new Font("Cascadia Code", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
             c_VideoSizeLabel.Location = new Point(3, 114);
             c_VideoSizeLabel.Name = "c_VideoSizeLabel";
