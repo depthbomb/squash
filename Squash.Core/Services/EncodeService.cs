@@ -308,69 +308,108 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                                         int maxIterations,
                                         CancellationToken ct)
     {
-        var args = new List<string>
+        var commonArgs = new List<string>
         {
             "-hide_banner", "-loglevel", "error", "-y",
             "-i", inputFile.FullPath,
-            "-b:v", string.Format(CultureInfo.InvariantCulture, "{0:F0}k", videoBitrate),
-            "-b:a", $"{audioBitrate}k"
+            "-b:v", string.Format(CultureInfo.InvariantCulture, "{0:F0}k", videoBitrate)
         };
 
-        args.AddRange(GetEncodeSettings(qualityPreset));
-        args.AddRange(["-progress", "pipe:1", "-nostats", outputFile.AsPosix()]);
+        commonArgs.AddRange(GetEncodeSettings(qualityPreset));
 
-        var progressData = new Dictionary<string, string>(StringComparer.Ordinal);
+        var passLogPrefix = Path.Combine(Path.GetTempPath(), $"squash-pass-{Guid.NewGuid():N}");
 
-        string? lastMsgLine = null;
-
-        var result = await ExecuteProcessAsync(ffmpegPath, args, line =>
+        try
         {
-            var trimmed = line.Trim();
-            if (string.IsNullOrEmpty(trimmed))
+            var firstPassArgs = new List<string>(commonArgs);
+            firstPassArgs.AddRange([
+                "-an", "-pass", "1", "-passlogfile", passLogPrefix,
+                "-f", "null", "-progress", "pipe:1", "-nostats", "NUL"
+            ]);
+            await RunPassAsync(firstPassArgs, passNumber: 1).ConfigureAwait(false);
+
+            var secondPassArgs = new List<string>(commonArgs)
             {
-                return Task.CompletedTask;
-            }
-
-            var sep = trimmed.IndexOf('=', StringComparison.Ordinal);
-            if (sep <= 0)
-            {
-                lastMsgLine = trimmed;
-                return Task.CompletedTask;
-            }
-
-            var key = trimmed[..sep];
-            var value = trimmed[(sep + 1)..];
-
-            progressData[key] = value;
-
-            if (key == "progress" && value == "continue")
-            {
-                var percent = ComputePercent(progressData, duration);
-                var status = BuildProgressStatus(progressData, duration);
-                var title = $"{(status.IsNullOrWhiteSpace() ? "" : status)}";
-
-                Progress?.Invoke(this, new ProgressEventArgs(iteration, maxIterations, percent, title));
-            }
-
-            return Task.CompletedTask;
-        }, ct).ConfigureAwait(false);
-
-        if (result.ExitCode != 0)
+                "-b:a", $"{audioBitrate}k",
+                "-pass", "2", "-passlogfile", passLogPrefix,
+                "-progress", "pipe:1", "-nostats", outputFile.AsPosix()
+            };
+            await RunPassAsync(secondPassArgs, passNumber: 2).ConfigureAwait(false);
+        }
+        finally
         {
-            var message = $"FFmpeg failed with exit code {result.ExitCode}.";
-            if (!lastMsgLine.IsNullOrWhiteSpace())
+            foreach (var passLogFile in Directory.EnumerateFiles(Path.GetTempPath(), $"{Path.GetFileName(passLogPrefix)}*"))
             {
-                message += $" {lastMsgLine}";
+                try
+                {
+                    File.Delete(passLogFile);
+                }
+                catch (IOException)
+                {
+                    // A failed cleanup must not hide the encode result.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // A failed cleanup must not hide the encode result.
+                }
             }
-            else if (!result.StandardError.IsNullOrWhiteSpace())
-            {
-                message += $" {result.StandardError.Trim()}";
-            }
-
-            throw new InvalidOperationException(message);
         }
 
         Progress?.Invoke(this, new ProgressEventArgs(iteration, maxIterations, 100, "Iteration complete"));
+
+        async Task RunPassAsync(List<string> args, int passNumber)
+        {
+            var progressData = new Dictionary<string, string>(StringComparer.Ordinal);
+            string? lastMsgLine = null;
+
+            var result = await ExecuteProcessAsync(ffmpegPath, args, line =>
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed))
+                {
+                    return Task.CompletedTask;
+                }
+
+                var sep = trimmed.IndexOf('=', StringComparison.Ordinal);
+                if (sep <= 0)
+                {
+                    lastMsgLine = trimmed;
+                    return Task.CompletedTask;
+                }
+
+                var key = trimmed[..sep];
+                var value = trimmed[(sep + 1)..];
+
+                progressData[key] = value;
+
+                if (key == "progress" && value == "continue")
+                {
+                    var passPercent = ComputePercent(progressData, duration);
+                    var percent = (passNumber - 1) * 50 + passPercent / 2;
+                    var status = BuildProgressStatus(progressData, duration);
+                    var title = $"Pass {passNumber}/2{(status.IsNullOrWhiteSpace() ? "" : $": {status}")}";
+
+                    Progress?.Invoke(this, new ProgressEventArgs(iteration, maxIterations, percent, title));
+                }
+
+                return Task.CompletedTask;
+            }, ct).ConfigureAwait(false);
+
+            if (result.ExitCode != 0)
+            {
+                var message = $"FFmpeg pass {passNumber} failed with exit code {result.ExitCode}.";
+                if (!lastMsgLine.IsNullOrWhiteSpace())
+                {
+                    message += $" {lastMsgLine}";
+                }
+                else if (!result.StandardError.IsNullOrWhiteSpace())
+                {
+                    message += $" {result.StandardError.Trim()}";
+                }
+
+                throw new InvalidOperationException(message);
+            }
+        }
     }
 
     private static async Task<ProcessResult> ExecuteProcessAsync(string executable,
