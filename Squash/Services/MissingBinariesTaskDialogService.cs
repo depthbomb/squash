@@ -19,6 +19,9 @@ public class MissingBinariesTaskDialogService
 
     public async Task<TaskDialogButton> ShowDialogAsync(IWin32Window owner)
     {
+        using var cts = new CancellationTokenSource();
+        Task? operationTask = null;
+
         #region Control
         var yesButton    = new TaskDialogCommandLinkButton("Yes", "Download the required binaries for me", allowCloseDialog: false);
         var noButton     = new TaskDialogCommandLinkButton("No", "Close Squash");
@@ -73,16 +76,47 @@ public class MissingBinariesTaskDialogService
                 TaskDialogButton.OK
             }
         };
+        var failurePage = new TaskDialogPage
+        {
+            Caption = "Squash",
+            Heading = "Download failed",
+            Icon = TaskDialogIcon.Error,
+            Buttons =
+            {
+                TaskDialogButton.Close
+            }
+        };
         #endregion
 
         #region Event subscribers
         yesButton.Click += (_, _) => initialPage.Navigate(downloadPage);
+        cancelButton.Click += (_, _) => cts.Cancel();
 
-        downloadPage.Created += async (_, _) =>
+        downloadPage.Created += (_, _) => operationTask = DownloadAndExtractAsync();
+        #endregion
+
+        var result = await TaskDialog.ShowDialogAsync(owner, initialPage);
+        cts.Cancel();
+
+        if (operationTask is not null)
+        {
+            try
+            {
+                await operationTask;
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
+                // Cancellation is represented by the dialog result.
+            }
+        }
+
+        return result;
+
+        async Task DownloadAndExtractAsync()
         {
             var temp = FilePath.TempFile();
 
-            _downloader.ProgressChanged += (_, progress) =>
+            void OnProgressChanged(object? sender, int progress)
             {
                 if (progress is < 0 or >= 100)
                 {
@@ -95,26 +129,41 @@ public class MissingBinariesTaskDialogService
 
                     downloadPage.Text = $"Downloading... ({progress}%)";
                 }
-            };
+            }
 
-            await _downloader.DownloadFileAsync(DownloadUrl, temp);
+            _downloader.ProgressChanged += OnProgressChanged;
 
-            downloadPage.Text = "Extracting...";
+            try
+            {
+                await _downloader.DownloadFileAsync(DownloadUrl, temp, cts.Token);
 
-            await _extractor.ExtractFilesFromArchiveAsync(
-                temp,
-                FilePath.From(AppDomain.CurrentDomain.BaseDirectory),
-                ["ffmpeg.exe", "ffprobe.exe"]
-            );
+                downloadPage.Text = "Extracting...";
 
-            _binaryLocator.Invalidate("ffmpeg", "ffprobe");
+                await _extractor.ExtractFilesFromArchiveAsync(
+                    temp,
+                    FilePath.From(AppDomain.CurrentDomain.BaseDirectory),
+                    ["ffmpeg.exe", "ffprobe.exe"],
+                    cts.Token
+                );
 
-            temp.Unlink(true);
+                _binaryLocator.Invalidate("ffmpeg", "ffprobe");
 
-            downloadPage.Navigate(successPage);
-        };
-        #endregion
-
-        return await TaskDialog.ShowDialogAsync(owner, initialPage);
+                downloadPage.Navigate(successPage);
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                failurePage.Text = ex.Message;
+                downloadPage.Navigate(failurePage);
+            }
+            finally
+            {
+                _downloader.ProgressChanged -= OnProgressChanged;
+                temp.Unlink(true);
+            }
+        }
     }
 }
