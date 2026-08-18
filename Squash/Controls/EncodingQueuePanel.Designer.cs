@@ -203,7 +203,7 @@
             c_TargetSizeInput.TabIndex = 12;
             c_TargetSizeInput.Tag = "toggleable";
             c_TargetSizeInput.TextAlign = HorizontalAlignment.Right;
-            c_TargetSizeInput.Value = new decimal(new int[] { 10, 0, 0, 0 });
+            c_TargetSizeInput.Value = new decimal(new int[] { 20, 0, 0, 0 });
             // 
             // c_ToleranceInput
             // 
