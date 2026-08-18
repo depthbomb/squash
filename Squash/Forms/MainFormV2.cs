@@ -99,9 +99,22 @@ public partial class MainFormV2 : Form
 
     private async void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
+        _encoder.Started -= EncoderOnStarted;
+        _encoder.Progress -= EncoderOnProgress;
+        _encoder.Finished -= EncoderOnFinished;
         _encoder.CancelEncoding();
 
-        await AppNotificationManager.Default.RemoveAllAsync();
+        Native.AllowSleep();
+        Native.ClearTaskbarProgress(this);
+
+        try
+        {
+            await AppNotificationManager.Default.RemoveAllAsync();
+        }
+        catch (COMException)
+        {
+            // Windows may tear down notification services during shutdown.
+        }
 
         AppNotificationManager.Default.Unregister();
     }
