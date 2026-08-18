@@ -1,3 +1,12 @@
+# 08/17/2026
+
+## 3.2.6
+
+- Changed the default target size to 20 MB
+- Improved output quality and target-size accuracy with two-pass encoding
+- Preserved source video characteristics and compatible audio when possible
+- Improved reliability when cancelling encodes, downloading FFmpeg, refreshing thumbnails, receiving notifications, and closing the app
+
 # 06/14/2026
 
 ## 3.2.5
