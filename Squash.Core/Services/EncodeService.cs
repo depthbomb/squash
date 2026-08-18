@@ -4,6 +4,7 @@ using Squash.Core.Extensions;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
 namespace Squash.Core.Services;
 
@@ -38,7 +39,34 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
     public event EventHandler<ProgressEventArgs>? Progress;
     public event EventHandler<EncodeResult?>? Finished;
 
-    private record VideoInfo(double DurationSeconds, double? VideoBitrateKbps);
+    internal sealed record VideoStreamInfo(
+        string CodecName,
+        int Width,
+        int Height,
+        string PixelFormat,
+        string? FrameRate,
+        string? ColorRange,
+        string? ColorSpace,
+        string? ColorTransfer,
+        string? ColorPrimaries,
+        double? BitrateKbps);
+
+    internal sealed record AudioStreamInfo(string CodecName, int Channels, double? BitrateKbps);
+
+    internal sealed record MediaInfo(
+        double DurationSeconds,
+        double? FormatBitrateKbps,
+        VideoStreamInfo Video,
+        AudioStreamInfo? Audio);
+
+    internal enum AudioMode
+    {
+        None,
+        Copy,
+        Encode
+    }
+
+    internal sealed record AudioPlan(AudioMode Mode, int EstimatedBitrateKbps);
 
     private record Sample(double BitrateKbps, long FileSize, int Iteration);
 
@@ -47,8 +75,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
     private const long BytesPerMegabyte = 1024L * 1024L;
     private const int MinVideoBitrate = 100;
     private const int MinAudioBitrate = 32;
-    private const int DefaultAudioBitrate = 128;
-    private const double ContainerOverhead = 0.97;
+    private const double TargetUtilization = 0.99;
 
     private CancellationTokenSource? _cts;
 
@@ -97,22 +124,39 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
             VideoSizeBelowTargetSizeException.ThrowIf(currentVideoSize <= targetSizeBytes, "Video file size is at or below target file size.");
 
-            var (duration, videoBitrateKbps) = await GetVideoInfoAsync(ffprobePath, inputFile, ct).ConfigureAwait(false);
+            var mediaInfo = await GetMediaInfoAsync(ffprobePath, inputFile, ct).ConfigureAwait(false);
+            var duration = mediaInfo.DurationSeconds;
             if (duration <= 0.0)
             {
                 throw new InvalidOperationException("Input video duration is invalid or unavailable.");
             }
 
-            var sourceBitrate = videoBitrateKbps ?? currentVideoSize * 8.0 / duration / 1_000.0;
+            var remuxedSize = await TryLosslessRemuxAsync(
+                ffmpegPath,
+                inputFile,
+                outputFile,
+                targetSizeBytes,
+                mediaInfo,
+                startedAt,
+                ct).ConfigureAwait(false);
+            if (remuxedSize is not null)
+            {
+                completedResult = remuxedSize;
+                return remuxedSize;
+            }
 
-            int audioBitrate = SelectAudioBitrate(duration, targetSizeBytes, DefaultAudioBitrate);
-            double targetBitrate = CalculateTargetBitrate(duration, targetSizeBytes, audioBitrate);
+            var audioPlan = SelectAudioPlan(mediaInfo, targetSizeBytes);
+            var sourceBitrate = mediaInfo.Video.BitrateKbps ??
+                                Math.Max(0.0, (mediaInfo.FormatBitrateKbps ?? currentVideoSize * 8.0 / duration / 1_000.0) -
+                                              (mediaInfo.Audio?.BitrateKbps ?? 0.0));
+
+            double targetBitrate = CalculateTargetBitrate(duration, targetSizeBytes, audioPlan.EstimatedBitrateKbps);
             double minBitrate = MinVideoBitrate;
             double maxBitrate = targetBitrate * 2;
 
             if (sourceBitrate > 0.0)
             {
-                var sourceVideoCap = Math.Max(MinVideoBitrate, sourceBitrate - audioBitrate);
+                var sourceVideoCap = Math.Max(MinVideoBitrate, sourceBitrate);
                 maxBitrate = Math.Min(maxBitrate, sourceVideoCap * 1.1);
             }
 
@@ -142,7 +186,8 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                         inputFile,
                         tempOutput,
                         currentBitrate,
-                        audioBitrate,
+                        audioPlan,
+                        mediaInfo,
                         qualityPreset,
                         duration,
                         iteration,
@@ -252,54 +297,146 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         _cts?.Cancel();
     }
 
-    private static async Task<VideoInfo> GetVideoInfoAsync(string ffprobePath, FilePath inputFile, CancellationToken ct)
+    private async Task<EncodeResult?> TryLosslessRemuxAsync(string ffmpegPath,
+                                                            FilePath inputFile,
+                                                            FilePath outputFile,
+                                                            long targetSizeBytes,
+                                                            MediaInfo mediaInfo,
+                                                            long startedAt,
+                                                            CancellationToken ct)
+    {
+        var temporaryOutput = CreateTemporaryMp4Path();
+        Progress?.Invoke(this, new ProgressEventArgs(0, 1, 0, "Checking lossless remux"));
+
+        try
+        {
+            var args = new List<string>
+            {
+                "-hide_banner", "-loglevel", "error", "-y",
+                "-i", inputFile.FullPath,
+                "-map", "0:v:0",
+                "-map", "0:a:0?",
+                "-map_metadata", "0",
+                "-map_chapters", "0",
+                "-c", "copy",
+                "-movflags", "+faststart",
+                temporaryOutput.AsPosix()
+            };
+            var processResult = await ExecuteProcessAsync(ffmpegPath, args, null, ct).ConfigureAwait(false);
+            if (processResult.ExitCode != 0 || !temporaryOutput.Exists)
+            {
+                return null;
+            }
+
+            var remuxedSize = temporaryOutput.FileInfo().Length;
+            if (remuxedSize > targetSizeBytes)
+            {
+                return null;
+            }
+
+            PublishOutput(temporaryOutput, outputFile);
+            return new EncodeResult(
+                Success: true,
+                FilePath: outputFile,
+                FileSizeBytes: remuxedSize,
+                TargetSizeBytes: targetSizeBytes,
+                Iteration: 0,
+                VideoBitrateKbps: mediaInfo.Video.BitrateKbps ?? 0,
+                ElapsedSeconds: ElapsedSecondsSince(startedAt));
+        }
+        finally
+        {
+            temporaryOutput.Unlink(true);
+        }
+    }
+
+    private static async Task<MediaInfo> GetMediaInfoAsync(string ffprobePath, FilePath inputFile, CancellationToken ct)
     {
         var args = new List<string>
         {
             "-v", "error",
-            "-show_entries", "format=duration,bit_rate",
-            "-of", "default=noprint_wrappers=1:nokey=1",
+            "-show_entries", "format=duration,bit_rate:stream=codec_type,codec_name,width,height,pix_fmt,avg_frame_rate,bit_rate,channels,color_range,color_space,color_transfer,color_primaries",
+            "-of", "json",
             inputFile.FullPath
         };
-        var lines = new List<string>();
+        var json = new StringBuilder();
         var result = await ExecuteProcessAsync(ffprobePath, args, line =>
         {
-            if (!line.IsNullOrWhiteSpace())
-            {
-                lines.Add(line.Trim());
-            }
-
+            json.AppendLine(line);
             return Task.CompletedTask;
         }, ct).ConfigureAwait(false);
 
-        if (result.ExitCode != 0 || lines.Count == 0)
+        if (result.ExitCode != 0 || json.Length == 0)
         {
             throw new InvalidOperationException("FFprobe failed to read input video metadata.");
         }
 
-        if (!double.TryParse(lines[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double duration))
+        using var document = JsonDocument.Parse(json.ToString());
+        var root = document.RootElement;
+        if (!root.TryGetProperty("format", out var format) ||
+            !TryGetDouble(format, "duration", out var duration))
         {
             throw new InvalidOperationException("FFprobe returned an invalid duration value.");
         }
 
-        double? bitrateKbps = null;
-        if (lines.Count > 1)
+        VideoStreamInfo? video = null;
+        AudioStreamInfo? audio = null;
+        if (root.TryGetProperty("streams", out var streams))
         {
-            var raw = lines[1];
-            if (!raw.Equals("N/A", StringComparison.OrdinalIgnoreCase) && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double bps))
+            foreach (var stream in streams.EnumerateArray())
             {
-                bitrateKbps = bps / 1_000.0;
+                var codecType = GetString(stream, "codec_type");
+                if (video is null && codecType == "video")
+                {
+                    video = new VideoStreamInfo(
+                        CodecName: GetString(stream, "codec_name") ?? "unknown",
+                        Width: GetInt32(stream, "width"),
+                        Height: GetInt32(stream, "height"),
+                        PixelFormat: GetString(stream, "pix_fmt") ?? "yuv420p",
+                        FrameRate: GetString(stream, "avg_frame_rate"),
+                        ColorRange: GetString(stream, "color_range"),
+                        ColorSpace: GetString(stream, "color_space"),
+                        ColorTransfer: GetString(stream, "color_transfer"),
+                        ColorPrimaries: GetString(stream, "color_primaries"),
+                        BitrateKbps: GetBitrateKbps(stream));
+                }
+                else if (audio is null && codecType == "audio")
+                {
+                    audio = new AudioStreamInfo(
+                        CodecName: GetString(stream, "codec_name") ?? "unknown",
+                        Channels: GetInt32(stream, "channels"),
+                        BitrateKbps: GetBitrateKbps(stream));
+                }
             }
         }
 
-        return new VideoInfo(duration, bitrateKbps);
+        return new MediaInfo(
+            DurationSeconds: duration,
+            FormatBitrateKbps: GetBitrateKbps(format),
+            Video: video ?? throw new InvalidOperationException("FFprobe did not find a video stream."),
+            Audio: audio);
+
+        static string? GetString(JsonElement element, string name) =>
+            element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
+
+        static int GetInt32(JsonElement element, string name) =>
+            element.TryGetProperty(name, out var value) && value.TryGetInt32(out var parsed) ? parsed : 0;
+
+        static bool TryGetDouble(JsonElement element, string name, out double value) =>
+            double.TryParse(GetString(element, name), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+
+        static double? GetBitrateKbps(JsonElement element) =>
+            TryGetDouble(element, "bit_rate", out var bitrate) ? bitrate / 1_000.0 : null;
     }
 
     private async Task EncodeVideoAsync(string ffmpegPath,
                                         FilePath inputFile,
                                         FilePath outputFile,
                                         double videoBitrate,
-                                        int audioBitrate,
+                                        AudioPlan audioPlan,
+                                        MediaInfo mediaInfo,
                                         int qualityPreset,
                                         double duration,
                                         int iteration,
@@ -310,10 +447,11 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         {
             "-hide_banner", "-loglevel", "error", "-y",
             "-i", inputFile.FullPath,
+            "-map", "0:v:0",
             "-b:v", string.Format(CultureInfo.InvariantCulture, "{0:F0}k", videoBitrate)
         };
 
-        commonArgs.AddRange(GetEncodeSettings(qualityPreset));
+        commonArgs.AddRange(GetEncodeSettings(qualityPreset, mediaInfo));
 
         var passLogPrefix = Path.Combine(Path.GetTempPath(), $"squash-pass-{Guid.NewGuid():N}");
 
@@ -326,12 +464,13 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             ]);
             await RunPassAsync(firstPassArgs, passNumber: 1).ConfigureAwait(false);
 
-            var secondPassArgs = new List<string>(commonArgs)
-            {
-                "-b:a", $"{audioBitrate}k",
+            var secondPassArgs = new List<string>(commonArgs);
+            AddAudioArguments(secondPassArgs, audioPlan);
+            secondPassArgs.AddRange([
+                "-map_metadata", "0", "-fps_mode:v", "passthrough",
                 "-pass", "2", "-passlogfile", passLogPrefix,
                 "-progress", "pipe:1", "-nostats", outputFile.AsPosix()
-            };
+            ]);
             await RunPassAsync(secondPassArgs, passNumber: 2).ConfigureAwait(false);
         }
         finally
@@ -466,14 +605,78 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         }
     }
 
-    private static IEnumerable<string> GetEncodeSettings(int qualityPreset) => qualityPreset switch
+    private static IEnumerable<string> GetEncodeSettings(int qualityPreset, MediaInfo mediaInfo)
     {
-        1 => ["-c:v", "libx264", "-preset", "medium", "-c:a", "aac", "-profile:v", "main", "-movflags", "+faststart", "-pix_fmt", "yuv420p"],
-        2 => ["-c:v", "libx265", "-preset", "medium", "-c:a", "aac", "-profile:v", "main", "-movflags", "+faststart", "-pix_fmt", "yuv420p"],
-        3 => ["-c:v", "libx265", "-preset", "slow", "-c:a", "aac", "-profile:v", "main", "-movflags", "+faststart", "-pix_fmt", "yuv420p"],
-        4 => ["-c:v", "libx265", "-preset", "veryslow", "-c:a", "aac", "-profile:v", "main", "-movflags", "+faststart", "-pix_fmt", "yuv420p"],
-        _ => throw new ArgumentException($"Unexpected quality preset: {qualityPreset}")
-    };
+        var useTenBit = ShouldUseTenBit(mediaInfo.Video);
+        var (codec, preset) = qualityPreset switch
+        {
+            1 => ("libx264", "medium"),
+            2 => ("libx265", "medium"),
+            3 => ("libx265", "slow"),
+            4 => ("libx265", "veryslow"),
+            _ => throw new ArgumentException($"Unexpected quality preset: {qualityPreset}")
+        };
+
+        var profile = codec == "libx265"
+            ? useTenBit ? "main10" : "main"
+            : useTenBit ? "high10" : "high";
+        var settings = new List<string>
+        {
+            "-c:v", codec,
+            "-preset", preset,
+            "-profile:v", profile,
+            "-movflags", "+faststart",
+            "-pix_fmt", useTenBit ? "yuv420p10le" : "yuv420p"
+        };
+
+        if (codec == "libx264")
+        {
+            settings.AddRange(["-fastfirstpass", "0"]);
+        }
+
+        AddColorMetadata(settings, mediaInfo.Video);
+        return settings;
+    }
+
+    private static void AddAudioArguments(List<string> arguments, AudioPlan audioPlan)
+    {
+        switch (audioPlan.Mode)
+        {
+            case AudioMode.None:
+                arguments.Add("-an");
+                break;
+            case AudioMode.Copy:
+                arguments.AddRange(["-map", "0:a:0?", "-c:a", "copy"]);
+                break;
+            case AudioMode.Encode:
+                arguments.AddRange(["-map", "0:a:0?", "-c:a", "aac", "-b:a", $"{audioPlan.EstimatedBitrateKbps}k"]);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(audioPlan));
+        }
+    }
+
+    private static void AddColorMetadata(List<string> arguments, VideoStreamInfo video)
+    {
+        AddIfKnown("-color_range", video.ColorRange);
+        AddIfKnown("-colorspace", video.ColorSpace);
+        AddIfKnown("-color_trc", video.ColorTransfer);
+        AddIfKnown("-color_primaries", video.ColorPrimaries);
+        return;
+
+        void AddIfKnown(string option, string? value)
+        {
+            if (!value.IsNullOrWhiteSpace() && value != "unknown")
+            {
+                arguments.AddRange([option, value!]);
+            }
+        }
+    }
+
+    internal static bool ShouldUseTenBit(VideoStreamInfo video) =>
+        video.PixelFormat.Contains("10", StringComparison.OrdinalIgnoreCase) ||
+        video.PixelFormat.Contains("12", StringComparison.OrdinalIgnoreCase) ||
+        video.ColorTransfer is "smpte2084" or "arib-std-b67";
 
     private static int ComputePercent(Dictionary<string, string> progress, double duration)
     {
@@ -537,20 +740,37 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             return MinVideoBitrate;
         }
 
-        return Math.Max(MinVideoBitrate, (targetSizeBytes * 8.0 / duration / 1_000.0 - audioBitrate) * ContainerOverhead);
+        return Math.Max(MinVideoBitrate, targetSizeBytes * 8.0 / duration / 1_000.0 * TargetUtilization - audioBitrate);
     }
 
-    private static int SelectAudioBitrate(double duration, long targetSizeBytes, int defaultAudioBitrate)
+    internal static AudioPlan SelectAudioPlan(MediaInfo mediaInfo, long targetSizeBytes)
     {
-        if (duration <= 0.0)
+        if (mediaInfo.Audio is null)
         {
-            return defaultAudioBitrate;
+            return new AudioPlan(AudioMode.None, 0);
         }
 
-        var totalBitrate = targetSizeBytes * 8.0 / duration / 1_000.0;
-        var maxAudio = totalBitrate - MinVideoBitrate / ContainerOverhead;
+        var totalBitrate = targetSizeBytes * 8.0 / mediaInfo.DurationSeconds / 1_000.0 * TargetUtilization;
+        var maxAudioBitrate = Math.Max(MinAudioBitrate, (int)Math.Floor(totalBitrate - MinVideoBitrate));
+        var preferredBitrate = mediaInfo.Audio.Channels switch
+        {
+            <= 1 => 64,
+            2 => 128,
+            _ => 192
+        };
+        if (mediaInfo.Audio.BitrateKbps is > 0)
+        {
+            preferredBitrate = Math.Min(preferredBitrate, (int)Math.Ceiling(mediaInfo.Audio.BitrateKbps.Value));
+        }
 
-        return maxAudio >= defaultAudioBitrate ? defaultAudioBitrate : (maxAudio <= 0.0 ? MinAudioBitrate : Math.Max(MinAudioBitrate, (int)maxAudio));
+        var selectedBitrate = Math.Clamp(preferredBitrate, MinAudioBitrate, maxAudioBitrate);
+        var canCopy = mediaInfo.Audio.CodecName.Equals("aac", StringComparison.OrdinalIgnoreCase) &&
+                      mediaInfo.Audio.BitrateKbps is > 0 &&
+                      mediaInfo.Audio.BitrateKbps <= selectedBitrate;
+
+        return canCopy
+            ? new AudioPlan(AudioMode.Copy, (int)Math.Ceiling(mediaInfo.Audio.BitrateKbps!.Value))
+            : new AudioPlan(AudioMode.Encode, selectedBitrate);
     }
 
     private static double EstimateNextBitrate(double currentBitrate,
