@@ -10,9 +10,11 @@ public partial class MainFormV2 : Form
     private const string DisclaimerKey     = "disclaimer-v2";
     private const string InitialStatusText = "Waiting";
     private const string NotificationGroup = "squash.encoding";
+    private static readonly TimeSpan NotificationUpdateInterval = TimeSpan.FromMilliseconds(750);
 
     private string? _notificationTag;
     private int     _notificationSequence = 1;
+    private long    _lastNotificationUpdate;
 
     private readonly PersistentStateService           _persistentState;
     private readonly EncodeService                    _encoder;
@@ -116,6 +118,7 @@ public partial class MainFormV2 : Form
 
         _notificationTag      = Guid.NewGuid().ToString("B");
         _notificationSequence = 1;
+        _lastNotificationUpdate = 0;
 
         var notification = new AppNotificationBuilder()
                            .AddText("Squashing in progress")
@@ -161,6 +164,15 @@ public partial class MainFormV2 : Form
             if (!Settings.Default.EnableNotifications)
                 return;
 
+            var now = Stopwatch.GetTimestamp();
+            if (_lastNotificationUpdate != 0 &&
+                Stopwatch.GetElapsedTime(_lastNotificationUpdate, now) < NotificationUpdateInterval)
+            {
+                return;
+            }
+
+            _lastNotificationUpdate = now;
+
             var prog = new AppNotificationProgressData((uint)++_notificationSequence)
             {
                 Title  = e.ProgressStatus,
@@ -168,7 +180,14 @@ public partial class MainFormV2 : Form
                 Status = $"Iteration {e.CurrentIteration} of {e.MaxIterations}"
             };
 
-            await AppNotificationManager.Default.UpdateAsync(prog, _notificationTag, NotificationGroup);
+            try
+            {
+                await AppNotificationManager.Default.UpdateAsync(prog, _notificationTag, NotificationGroup);
+            }
+            catch (COMException)
+            {
+                // A notification can disappear independently of the encode operation.
+            }
         }
     }
 
