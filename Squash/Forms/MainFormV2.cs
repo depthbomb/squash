@@ -213,25 +213,25 @@ public partial class MainFormV2 : Form
         {
             if (!Settings.Default.EnableNotifications)
             {
-                MessageBox.Show(
-                    this,
-                    $"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
-                    $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).",
-                    "Operation complete",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information
-                );
+                ShowSuccessMessage();
             }
             else
             {
-                var thumbnail = await _thumbnail.GetVideoThumbnailAsync(res.FilePath.FullPath, FilePath.TempDir());
-                var notification = new AppNotificationBuilder()
-                                   .AddText($"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
-                                            $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).")
-                                   .SetHeroImage(new Uri(thumbnail.FullPath))
-                                   .BuildNotification();
+                try
+                {
+                    var thumbnail = await _thumbnail.GetVideoThumbnailAsync(res.FilePath.FullPath, FilePath.TempDir());
+                    var notification = new AppNotificationBuilder()
+                                       .AddText($"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
+                                                $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).")
+                                       .SetHeroImage(new Uri(thumbnail.FullPath))
+                                       .BuildNotification();
 
-                AppNotificationManager.Default.Show(notification);
+                    AppNotificationManager.Default.Show(notification);
+                }
+                catch (Exception ex) when (ex is IOException or InvalidOperationException or COMException or UriFormatException)
+                {
+                    ShowSuccessMessage();
+                }
             }
         }
         else
@@ -247,7 +247,25 @@ public partial class MainFormV2 : Form
             );
         }
 
-        await AppNotificationManager.Default.RemoveByGroupAsync(NotificationGroup);
+        try
+        {
+            await AppNotificationManager.Default.RemoveByGroupAsync(NotificationGroup);
+        }
+        catch (COMException)
+        {
+            // The progress notification may already have been dismissed.
+        }
+
+        return;
+
+        void ShowSuccessMessage() => MessageBox.Show(
+            this,
+            $"Successfully compressed video to {res.FileSizeBytes.ToFileSizeString()} in " +
+            $"{res.ElapsedSeconds.ToDurationString()} after {res.Iteration} iteration(s).",
+            "Operation complete",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information
+        );
     }
     #endregion
 
