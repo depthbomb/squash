@@ -65,7 +65,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         if (targetSizeMb < 1)
             throw new ArgumentException("Target size must be greater than 0.");
 
-        if (tolerancePercent is <= 0.0 or > 50.0)
+        if (tolerancePercent is < 0.0 or > 50.0)
             throw new ArgumentException("Tolerance must be between 0 and 50.");
 
         if (maxIterations <= 0)
@@ -155,7 +155,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
                     lastEncodedSize = newFileSize;
 
-                    if (newFileSize < targetSizeBytes)
+                    if (newFileSize <= targetSizeBytes)
                     {
                         if (bestUnder == null || newFileSize > bestUnder.FileSize)
                         {
@@ -164,7 +164,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                         }
 
                         var gapToTarget = targetSizeBytes - newFileSize;
-                        if (gapToTarget < toleranceBytes)
+                        if (gapToTarget <= toleranceBytes)
                         {
                             PublishOutput(tempOutput, outputFile);
 

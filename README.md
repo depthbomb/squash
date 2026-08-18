@@ -14,7 +14,7 @@ Squash can be installed using the setup available from the [latest release.](htt
 
 ### Tolerance
 
-The tolerance option determines how close, as a percentage, an encoded file must be to the target size to be considered successful. By default, this value is set to 2%, meaning that if the target size is 10 MB, a resulting file size of 9.98 MB will be considered successful.
+The tolerance option determines how close, as a percentage, an encoded file must be to the target size to be considered successful. By default, this value is set to 2%, meaning that if the target size is 10 MB, a resulting file size of 9.8 MB or larger will be considered successful.
 
 Setting this value to 0 is technically possible, but it may require significantly more iterations than the default maximum. (See the section below.)
 
