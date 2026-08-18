@@ -93,7 +93,6 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             var ffprobePath = await RequireBinaryPathAsync("ffprobe", "FFprobe was not found.").ConfigureAwait(false);
             var ffmpegPath = await RequireBinaryPathAsync("ffmpeg", "FFmpeg was not found.").ConfigureAwait(false);
             var targetSizeBytes = targetSizeMb * BytesPerMegabyte;
-            var toleranceBytes = targetSizeBytes * (tolerancePercent / 100.0);
             var currentVideoSize = inputFile.FileInfo().Length;
 
             VideoSizeBelowTargetSizeException.ThrowIf(currentVideoSize <= targetSizeBytes, "Video file size is at or below target file size.");
@@ -163,8 +162,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                             File.Copy(tempOutput.FullPath, bestUnderOutput.FullPath, overwrite: true);
                         }
 
-                        var gapToTarget = targetSizeBytes - newFileSize;
-                        if (gapToTarget <= toleranceBytes)
+                        if (IsWithinTolerance(newFileSize, targetSizeBytes, tolerancePercent))
                         {
                             PublishOutput(tempOutput, outputFile);
 
@@ -603,6 +601,9 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
     }
 
     private static double ElapsedSecondsSince(long startTimestamp) => (double)(Stopwatch.GetTimestamp() - startTimestamp) / Stopwatch.Frequency;
+
+    internal static bool IsWithinTolerance(long fileSize, long targetSize, double tolerancePercent) =>
+        fileSize <= targetSize && targetSize - fileSize <= targetSize * (tolerancePercent / 100.0);
 
     private static FilePath CreateTemporaryMp4Path() =>
         FilePath.From(Path.Combine(Path.GetTempPath(), $"squash-{Guid.NewGuid():N}.mp4"));
