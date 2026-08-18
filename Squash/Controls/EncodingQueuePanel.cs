@@ -315,15 +315,11 @@ public partial class EncodingQueuePanel : UserControl
         Invalidate();
     }
 
-    private async Task SetVideoSizeAsync(FilePath videoFile, CancellationToken ct)
+    private Task SetVideoSizeAsync(FilePath videoFile, CancellationToken ct)
     {
-        var videoLength = await Task.Run(() =>
-        {
-            return videoFile.FileInfo().Length.ToFileSizeString();
-        }, ct);
-
         ct.ThrowIfCancellationRequested();
-        c_VideoSizeLabel.Text = videoLength;
+        c_VideoSizeLabel.Text = videoFile.FileInfo().Length.ToFileSizeString();
+        return Task.CompletedTask;
     }
 
     private void DisposeThumbnailCancellation()
