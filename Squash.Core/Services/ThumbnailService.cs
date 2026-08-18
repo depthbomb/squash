@@ -22,7 +22,9 @@ public class ThumbnailService
             throw new InvalidOperationException($"{nameof(thumbnailOutputPath)} should be a directory.");
         }
 
-        var thumbnailFileName = $"{videoFilePath.Name.CreateGuidFrom("B")}.jpg";
+        var videoInfo = videoFilePath.FileInfo();
+        var cacheIdentity = $"{videoFilePath.FullPath}|{videoInfo.Length}|{videoInfo.LastWriteTimeUtc.Ticks}";
+        var thumbnailFileName = $"{cacheIdentity.CreateGuidFrom("B")}.jpg";
         var thumbnailFilePath = thumbnailOutputPath / thumbnailFileName;
         if (thumbnailFilePath.Exists)
         {
