@@ -53,20 +53,53 @@ public class ThumbnailService
         psi.ArgumentList.Add(thumbnailFilePath.FullPath);
 
         using var proc = Process.Start(psi) ?? throw new InvalidOperationException($"Failed to start {ffmpegBinary}.");
+        var stderrTask = proc.StandardError.ReadToEndAsync();
 
-        await proc.WaitForExitAsync(ct).ConfigureAwait(false);
-
-        if (proc.ExitCode != 0)
+        try
         {
-            var error = await proc.StandardError.ReadToEndAsync(ct);
-            throw new InvalidOperationException($"FFmpeg failed: {error}");
-        }
+            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
 
-        if (!thumbnailFilePath.Exists)
+            var error = await stderrTask.ConfigureAwait(false);
+            if (proc.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"FFmpeg failed: {error}");
+            }
+
+            if (!thumbnailFilePath.Exists)
+            {
+                throw new InvalidOperationException("Could not create thumbnail.");
+            }
+
+            return thumbnailFilePath;
+        }
+        catch
         {
-            throw new Exception("Could not create thumbnail.");
+            thumbnailFilePath.Unlink(true);
+            throw;
         }
+        finally
+        {
+            if (!proc.HasExited)
+            {
+                try
+                {
+                    proc.Kill(entireProcessTree: true);
+                    await proc.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Best effort: the original failure or cancellation is more useful.
+                }
+            }
 
-        return thumbnailFilePath;
+            try
+            {
+                await stderrTask.ConfigureAwait(false);
+            }
+            catch
+            {
+                // Best effort: the original failure or cancellation is more useful.
+            }
+        }
     }
 }
