@@ -57,7 +57,7 @@ public partial class MainFormV2 : Form
 
         #region Events
         AppNotificationManager.Default.NotificationInvoked += OnNotificationInvoked;
-        AccentHelper.ThemeUpdated                          += (_, _) => c_NavigationView.UpdateAccentColors();
+        AccentHelper.ThemeUpdated                          += OnThemeUpdated;
         #endregion
 
         AppNotificationManager.Default.Register();
@@ -142,6 +142,12 @@ public partial class MainFormV2 : Form
 
     private async void EncoderOnProgress(object? sender, ProgressEventArgs e)
     {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => EncoderOnProgress(sender, e));
+            return;
+        }
+
         c_StatusLabel.Text = e.ProgressStatus;
 
         if (e.ProgressPercent >= 100)
@@ -168,6 +174,12 @@ public partial class MainFormV2 : Form
 
     private async void EncoderOnFinished(object? sender, EncodeService.EncodeResult? res)
     {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => EncoderOnFinished(sender, res));
+            return;
+        }
+
         c_StatusLabel.Text = InitialStatusText;
 
         Native.AllowSleep();
@@ -232,10 +244,27 @@ public partial class MainFormV2 : Form
             BringToFrontFromActivation();
         }
     }
+
+    private void OnThemeUpdated(object? sender, EventArgs e)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => OnThemeUpdated(sender, e));
+            return;
+        }
+
+        c_NavigationView.UpdateAccentColors();
+    }
     #endregion
 
     public void BringToFrontFromActivation()
     {
+        if (InvokeRequired)
+        {
+            BeginInvoke(BringToFrontFromActivation);
+            return;
+        }
+
         if (WindowState == FormWindowState.Minimized)
         {
             WindowState = FormWindowState.Normal;
