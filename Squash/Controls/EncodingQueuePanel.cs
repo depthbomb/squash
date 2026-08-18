@@ -275,8 +275,10 @@ public partial class EncodingQueuePanel : UserControl
 
         ct.ThrowIfCancellationRequested();
 
-        var bytes    = await File.ReadAllBytesAsync(image.FullPath, ct);
-        var newImage = Image.FromStream(new MemoryStream(bytes));
+        var bytes = await File.ReadAllBytesAsync(image.FullPath, ct);
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var sourceImage = Image.FromStream(stream);
+        var newImage = new Bitmap(sourceImage);
         var oldImage = c_ThumbnailPictureBox.Image;
 
         c_ThumbnailPictureBox.Image = newImage;
