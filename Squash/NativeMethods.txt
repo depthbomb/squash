@@ -6,6 +6,5 @@ FLASHWINFO_FLAGS
 SetThreadExecutionState
 SetCurrentProcessExplicitAppUserModelID
 DwmSetWindowAttribute
-DWMWA_CAPTION_COLOR
-DWMWA_TEXT_COLOR
+DWMWINDOWATTRIBUTE
 COLORREF
