@@ -237,7 +237,9 @@ public partial class MainFormV2 : Form
     public void BringToFrontFromActivation()
     {
         if (WindowState == FormWindowState.Minimized)
+        {
             WindowState = FormWindowState.Normal;
+        }
 
         Show();
         TopMost = true;

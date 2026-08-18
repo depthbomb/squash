@@ -1,5 +1,6 @@
 ﻿using Windows.Win32.UI.Shell;
 using Windows.Win32.Foundation;
+using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.System.Power;
 using Windows.Win32.UI.WindowsAndMessaging;
 
@@ -83,6 +84,33 @@ public static class Native
     public static void AllowSleep() => PInvoke.SetThreadExecutionState(EXECUTION_STATE.ES_CONTINUOUS);
 
     public static void SetCurrentProcessExplicitAppUserModelId(string appId) => PInvoke.SetCurrentProcessExplicitAppUserModelID(appId);
+
+    public static unsafe void SetWindowTitlebarColors(Form   form,
+                                                      Color  backgroundColor,
+                                                      Color? foregroundColor = null,
+                                                      Color? borderColor     = null)
+    {
+        var hwnd = (HWND)form.Handle;
+
+        if (foregroundColor is { } fg)
+        {
+            var value = ToRgb(fg);
+            PInvoke.DwmSetWindowAttribute(hwnd, DWMWINDOWATTRIBUTE.DWMWA_TEXT_COLOR, &value, sizeof(uint));
+        }
+
+        if (borderColor is { } bc)
+        {
+            var value = ToRgb(bc);
+            PInvoke.DwmSetWindowAttribute(hwnd, DWMWINDOWATTRIBUTE.DWMWA_BORDER_COLOR, &value, sizeof(uint));
+        }
+
+        var captionValue = ToRgb(backgroundColor);
+        PInvoke.DwmSetWindowAttribute(hwnd, DWMWINDOWATTRIBUTE.DWMWA_CAPTION_COLOR, &captionValue, sizeof(uint));
+
+        return;
+
+        static uint ToRgb(Color c) => (uint)(c.R | c.G << 8 | c.B << 16);
+    }
 
     private static HWND GetHandle(Form form) => (HWND)form.Handle;
 
