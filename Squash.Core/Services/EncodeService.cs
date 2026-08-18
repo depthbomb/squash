@@ -40,7 +40,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
     private record VideoInfo(double DurationSeconds, double? VideoBitrateKbps);
 
-    private record Sample(double BitrateKbps, long FileSize);
+    private record Sample(double BitrateKbps, long FileSize, int Iteration);
 
     private record ProcessResult(int ExitCode, string StandardError);
 
@@ -123,9 +123,9 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             Sample? bestUnder = null;
             Sample? bestOver = null;
             long? lastEncodedSize = null;
-            double? lastEncodedBitrate = null;
 
-            var tempOutput = FilePath.TempFile().WithSuffix(".mp4");
+            var tempOutput = CreateTemporaryMp4Path();
+            var bestUnderOutput = CreateTemporaryMp4Path();
 
             try
             {
@@ -154,21 +154,19 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                     long newFileSize = tempOutput.FileInfo().Length;
 
                     lastEncodedSize = newFileSize;
-                    lastEncodedBitrate = currentBitrate;
 
                     if (newFileSize < targetSizeBytes)
                     {
                         if (bestUnder == null || newFileSize > bestUnder.FileSize)
                         {
-                            bestUnder = new Sample(currentBitrate, newFileSize);
+                            bestUnder = new Sample(currentBitrate, newFileSize, iteration);
+                            File.Copy(tempOutput.FullPath, bestUnderOutput.FullPath, overwrite: true);
                         }
 
                         var gapToTarget = targetSizeBytes - newFileSize;
                         if (gapToTarget < toleranceBytes)
                         {
-                            outputFile.Unlink(true);
-
-                            tempOutput.Rename(outputFile);
+                            PublishOutput(tempOutput, outputFile);
 
                             var result = new EncodeResult(
                                 Success: true,
@@ -190,7 +188,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                     {
                         if (bestOver == null || newFileSize < bestOver.FileSize)
                         {
-                            bestOver = new Sample(currentBitrate, newFileSize);
+                            bestOver = new Sample(currentBitrate, newFileSize, iteration);
                         }
 
                         maxBitrate = currentBitrate;
@@ -209,21 +207,17 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                         break;
                 }
 
-                var finalSize = lastEncodedSize ?? tempOutput.FileInfo().Length;
-                var finalBitrate = lastEncodedBitrate ?? currentBitrate;
-                if (finalSize <= targetSizeBytes)
+                if (bestUnder is not null)
                 {
-                    outputFile.Unlink(true);
-
-                    tempOutput.Rename(outputFile);
+                    PublishOutput(bestUnderOutput, outputFile);
 
                     var result = new EncodeResult(
                         Success: false,
                         FilePath: outputFile,
-                        FileSizeBytes: finalSize,
+                        FileSizeBytes: bestUnder.FileSize,
                         TargetSizeBytes: targetSizeBytes,
-                        Iteration: maxIterations,
-                        VideoBitrateKbps: finalBitrate,
+                        Iteration: bestUnder.Iteration,
+                        VideoBitrateKbps: bestUnder.BitrateKbps,
                         ElapsedSeconds: ElapsedSecondsSince(startedAt));
 
                     completedResult = result;
@@ -236,11 +230,13 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                     $"Could not reach target after {maxIterations} iterations. Closest over-target result was {bestOver!.FileSize.ToFileSizeString()} at {bestOver.BitrateKbps:F0} kbps."
                 );
 
+                var finalSize = lastEncodedSize ?? 0;
                 throw new UnableToReachTargetSizeException($"Could not reach target after {maxIterations} iterations. Final result was {finalSize.ToFileSizeString()}.");
             }
             finally
             {
                 tempOutput.Unlink(true);
+                bestUnderOutput.Unlink(true);
             }
         }
         finally
@@ -568,4 +564,13 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
     }
 
     private static double ElapsedSecondsSince(long startTimestamp) => (double)(Stopwatch.GetTimestamp() - startTimestamp) / Stopwatch.Frequency;
+
+    private static FilePath CreateTemporaryMp4Path() =>
+        FilePath.From(Path.Combine(Path.GetTempPath(), $"squash-{Guid.NewGuid():N}.mp4"));
+
+    private static void PublishOutput(FilePath source, FilePath destination)
+    {
+        destination.Parent.Mkdir(true, true);
+        File.Copy(source.FullPath, destination.FullPath, overwrite: true);
+    }
 }
