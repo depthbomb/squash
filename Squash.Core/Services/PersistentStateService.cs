@@ -7,7 +7,7 @@ namespace Squash.Core.Services;
 public sealed class PersistentStateService
 {
     private readonly FilePath        _filePath;
-    private readonly HashSet<string> _completedActions;
+    private HashSet<string>          _completedActions;
     private readonly SemaphoreSlim   _lock = new(1, 1);
 
     public PersistentStateService()
@@ -25,7 +25,7 @@ public sealed class PersistentStateService
     public bool HasCompleted(string key)
     {
         key = key.CreateGuidFrom("B");
-        return _completedActions.Contains(key);
+        return Volatile.Read(ref _completedActions).Contains(key);
     }
 
     public async Task MarkCompletedAsync(string key, CancellationToken ct = default)
@@ -36,9 +36,11 @@ public sealed class PersistentStateService
 
         try
         {
-            if (_completedActions.Add(key))
+            var updatedActions = new HashSet<string>(_completedActions);
+            if (updatedActions.Add(key))
             {
-                await SaveAsync(ct).ConfigureAwait(false);
+                await SaveAsync(updatedActions, ct).ConfigureAwait(false);
+                Volatile.Write(ref _completedActions, updatedActions);
             }
         }
         finally
@@ -55,9 +57,11 @@ public sealed class PersistentStateService
 
         try
         {
-            if (_completedActions.Remove(key))
+            var updatedActions = new HashSet<string>(_completedActions);
+            if (updatedActions.Remove(key))
             {
-                await SaveAsync(ct).ConfigureAwait(false);
+                await SaveAsync(updatedActions, ct).ConfigureAwait(false);
+                Volatile.Write(ref _completedActions, updatedActions);
             }
         }
         finally
@@ -85,10 +89,19 @@ public sealed class PersistentStateService
         }
     }
 
-    private async Task SaveAsync(CancellationToken ct)
+    private async Task SaveAsync(HashSet<string> completedActions, CancellationToken ct)
     {
-        var json = JsonSerializer.Serialize(_completedActions);
+        var json = JsonSerializer.Serialize(completedActions);
+        var temporaryPath = $"{_filePath.FullPath}.{Guid.NewGuid():N}.tmp";
 
-        await _filePath.WriteTextAsync(json, ct: ct).ConfigureAwait(false);
+        try
+        {
+            await File.WriteAllTextAsync(temporaryPath, json, ct).ConfigureAwait(false);
+            File.Move(temporaryPath, _filePath.FullPath, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(temporaryPath);
+        }
     }
 }
