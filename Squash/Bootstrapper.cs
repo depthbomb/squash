@@ -18,7 +18,7 @@ internal static class Bootstrapper
         {
             var args = AppInstance.GetCurrent().GetActivatedEventArgs();
 
-            _ = instance.RedirectActivationToAsync(args);
+            instance.RedirectActivationToAsync(args).AsTask().GetAwaiter().GetResult();
 
             Application.Exit();
             return;
