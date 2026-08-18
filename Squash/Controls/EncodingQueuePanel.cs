@@ -9,7 +9,9 @@ namespace Squash.Controls;
 
 public partial class EncodingQueuePanel : UserControl
 {
-    private bool HasInputFile  => !c_InputFileTextBox.Text.IsNullOrWhiteSpace();
+    private bool HasInputFile  => !c_InputFileTextBox.Text.IsNullOrWhiteSpace() &&
+                                  File.Exists(c_InputFileTextBox.Text) &&
+                                  IsVideoFile(c_InputFileTextBox.Text);
     private bool HasOutputFile => !c_OutputFileTextBox.Text.IsNullOrWhiteSpace();
 
     private const string MainButtonInitialText = "&Squash it!";
@@ -52,6 +54,7 @@ public partial class EncodingQueuePanel : UserControl
         c_MainButton.Click              += C_MainButtonOnClick;
         c_InputFileBrowseButton.Click   += C_InputFileBrowseButtonOnClick;
         c_OutputFileBrowseButton.Click  += C_OutputFileBrowseButtonOnClick;
+        Disposed                        += (_, _) => DisposeThumbnailCancellation();
         #endregion
 
         UpdateOutputFileBrowseButtonState();
@@ -140,25 +143,47 @@ public partial class EncodingQueuePanel : UserControl
 
     private async void TextBoxesOnTextChanged(object? sender, EventArgs e)
     {
-        if (sender == c_InputFileTextBox && HasInputFile)
+        if (sender == c_InputFileTextBox)
         {
-            var inputPath = FilePath.From(c_InputFileTextBox.Text);
-            var newName   = GetUniqueSquashedName(inputPath);
-            var newPath   = inputPath.WithName(newName);
+            var previousCts = _thumbnailCts;
+            var currentCts = new CancellationTokenSource();
+            _thumbnailCts = currentCts;
+            previousCts.Cancel();
+            previousCts.Dispose();
 
-            c_OutputFileTextBox.Text = newPath.FullPath;
-
-            if (c_ThumbnailPictureBox.Cursor == Cursors.No)
+            try
             {
-                c_ThumbnailPictureBox.Cursor = Cursors.Hand;
+                await Task.Delay(250, currentCts.Token);
+                if (HasInputFile)
+                {
+                    var inputPath = FilePath.From(c_InputFileTextBox.Text);
+                    var newName = GetUniqueSquashedName(inputPath);
+                    var newPath = inputPath.WithName(newName);
+
+                    c_OutputFileTextBox.Text = newPath.FullPath;
+                    c_ThumbnailPictureBox.Cursor = Cursors.Hand;
+
+                    await Task.WhenAll(
+                        SetVideoSizeAsync(inputPath, currentCts.Token),
+                        SetThumbnailAsync(inputPath, currentCts.Token));
+                }
             }
-
-            await _thumbnailCts.CancelAsync();
-            _thumbnailCts = new CancellationTokenSource();
-
-            await Task.WhenAll(
-                SetVideoSizeAsync(),
-                SetThumbnailAsync(_thumbnailCts.Token));
+            catch (OperationCanceledException) when (currentCts.IsCancellationRequested)
+            {
+                // A newer input superseded this request.
+            }
+            catch (IOException)
+            {
+                // The input changed or disappeared while it was being inspected.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Keep the form usable when a manually entered path is inaccessible.
+            }
+            catch (InvalidOperationException)
+            {
+                // Unsupported or corrupt media should not terminate the UI event loop.
+            }
         }
 
         UpdateOutputFileBrowseButtonState();
@@ -266,10 +291,10 @@ public partial class EncodingQueuePanel : UserControl
         return $"{safeStem}{suffix}";
     }
 
-    private async Task SetThumbnailAsync(CancellationToken ct)
+    private async Task SetThumbnailAsync(FilePath videoFile, CancellationToken ct)
     {
         var image = await _thumbnail.GetVideoThumbnailAsync(
-            FilePath.From(c_InputFileTextBox.Text),
+            videoFile,
             FilePath.TempDir(),
             ct);
 
@@ -290,16 +315,21 @@ public partial class EncodingQueuePanel : UserControl
         Invalidate();
     }
 
-    private async Task SetVideoSizeAsync()
+    private async Task SetVideoSizeAsync(FilePath videoFile, CancellationToken ct)
     {
         var videoLength = await Task.Run(() =>
         {
-            var videoFile = FilePath.From(c_InputFileTextBox.Text);
-
             return videoFile.FileInfo().Length.ToFileSizeString();
-        });
+        }, ct);
 
+        ct.ThrowIfCancellationRequested();
         c_VideoSizeLabel.Text = videoLength;
+    }
+
+    private void DisposeThumbnailCancellation()
+    {
+        _thumbnailCts.Cancel();
+        _thumbnailCts.Dispose();
     }
 
     private void DrawAccentedBackground(Graphics g, Color accent, Color background)
