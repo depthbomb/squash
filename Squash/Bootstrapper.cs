@@ -10,7 +10,12 @@ internal static class Bootstrapper
     [STAThread]
     private static void Main()
     {
-        Settings.Default.Upgrade();
+        if (Settings.Default.UpgradeRequired)
+        {
+            Settings.Default.Upgrade();
+            Settings.Default.UpgradeRequired = false;
+            Settings.Default.Save();
+        }
 
         #region App Instance Setup
         var instance = AppInstance.FindOrRegisterForKey(GlobalShared.MutexName);
