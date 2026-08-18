@@ -159,12 +159,12 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                         if (bestUnder == null || newFileSize > bestUnder.FileSize)
                         {
                             bestUnder = new Sample(currentBitrate, newFileSize, iteration);
-                            File.Copy(tempOutput.FullPath, bestUnderOutput.FullPath, overwrite: true);
+                            File.Move(tempOutput.FullPath, bestUnderOutput.FullPath, overwrite: true);
                         }
 
                         if (IsWithinTolerance(newFileSize, targetSizeBytes, tolerancePercent))
                         {
-                            PublishOutput(tempOutput, outputFile);
+                            PublishOutput(bestUnderOutput, outputFile);
 
                             var result = new EncodeResult(
                                 Success: true,
