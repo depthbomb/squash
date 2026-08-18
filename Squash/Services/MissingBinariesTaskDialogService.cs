@@ -6,12 +6,15 @@ public class MissingBinariesTaskDialogService
 
     private readonly DownloadService _downloader;
     private readonly ExtractService  _extractor;
+    private readonly BinaryLocatorService _binaryLocator;
 
     public MissingBinariesTaskDialogService(DownloadService downloader,
-                                            ExtractService  extractor)
+                                            ExtractService extractor,
+                                            BinaryLocatorService binaryLocator)
     {
         _downloader = downloader;
-        _extractor  = extractor;
+        _extractor = extractor;
+        _binaryLocator = binaryLocator;
     }
 
     public async Task<TaskDialogButton> ShowDialogAsync(IWin32Window owner)
@@ -103,6 +106,8 @@ public class MissingBinariesTaskDialogService
                 FilePath.From(AppDomain.CurrentDomain.BaseDirectory),
                 ["ffmpeg.exe", "ffprobe.exe"]
             );
+
+            _binaryLocator.Invalidate("ffmpeg", "ffprobe");
 
             temp.Unlink(true);
 

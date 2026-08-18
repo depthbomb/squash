@@ -6,20 +6,39 @@ namespace Squash.Core.Services;
 
 public class BinaryLocatorService
 {
-    private readonly ConcurrentDictionary<string, FilePath?> _cache = new();
+    private readonly ConcurrentDictionary<string, Lazy<Task<FilePath?>>> _cache = new(StringComparer.OrdinalIgnoreCase);
 
     public async Task<FilePath?> GetBinaryPathAsync(string name)
     {
-        if (_cache.TryGetValue(name, out var cached))
+        var lookup = _cache.GetOrAdd(
+            name,
+            static binaryName => new Lazy<Task<FilePath?>>(
+                () => FindBinaryPathAsync(binaryName),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+
+        try
         {
-            return cached;
+            var path = await lookup.Value.ConfigureAwait(false);
+            if (path is null)
+            {
+                _cache.TryRemove(name, out _);
+            }
+
+            return path;
         }
+        catch
+        {
+            _cache.TryRemove(name, out _);
+            throw;
+        }
+    }
 
-        var path = await FindBinaryPathAsync(name).ConfigureAwait(false);
-
-        _cache[name] = path;
-
-        return path;
+    public void Invalidate(params ReadOnlySpan<string> names)
+    {
+        foreach (var name in names)
+        {
+            _cache.TryRemove(name, out _);
+        }
     }
 
     private static async Task<FilePath?> FindBinaryPathAsync(string name)
