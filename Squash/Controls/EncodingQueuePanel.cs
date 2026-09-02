@@ -38,7 +38,10 @@ public partial class EncodingQueuePanel : UserControl
         c_QualityPresetComboBox.Items.AddRange("1. Fast, decent quality", "2. Slow, better quality (recommended)");
         if (Settings.Default.EnableAdditionalQualityPresets)
         {
-            c_QualityPresetComboBox.Items.AddRange("3. Very slow, better quality", "4. Absurdly slow, better quality");
+            c_QualityPresetComboBox.Items.AddRange(
+                "3. Very slow, better quality",
+                "4. Absurdly slow, better quality",
+                "5. Experimental AV1, best compression");
         }
 
         c_QualityPresetComboBox.SelectedIndex = 1;
@@ -212,13 +215,16 @@ public partial class EncodingQueuePanel : UserControl
                 Convert.ToInt32(c_TargetSizeInput.Value),
                 Convert.ToDouble(c_ToleranceInput.Value),
                 Convert.ToInt32(c_MaxIterationsInput.Value),
-                c_QualityPresetComboBox.SelectedIndex + 1);
+                c_QualityPresetComboBox.SelectedIndex + 1,
+                c_IncludeAudioCheckBox.Checked);
         }
         catch (OperationCanceledException)
         {
             /*Ignored*/
         }
-        catch (Exception ex) when (ex is UnableToReachTargetSizeException or VideoSizeBelowTargetSizeException)
+        catch (Exception ex) when (ex is UnableToReachTargetSizeException or
+                                           VideoSizeBelowTargetSizeException or
+                                           IncompatibleAudioStreamsException)
         {
             MessageBox.Show(ex.Message, "Operation complete", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 

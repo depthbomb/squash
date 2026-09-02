@@ -36,7 +36,9 @@
             label4 = new Label();
             label5 = new Label();
             label6 = new Label();
+            label7 = new Label();
             c_QualityPresetComboBox = new ComboBox();
+            c_IncludeAudioCheckBox = new CheckBox();
             c_InputFileTextBox = new TextBox();
             c_TargetSizeInput = new NumericUpDownEx();
             c_ToleranceInput = new NumericUpDownEx();
@@ -68,7 +70,9 @@
             _controlsTable.Controls.Add(label4, 0, 3);
             _controlsTable.Controls.Add(label5, 0, 4);
             _controlsTable.Controls.Add(label6, 0, 5);
+            _controlsTable.Controls.Add(label7, 0, 6);
             _controlsTable.Controls.Add(c_QualityPresetComboBox, 1, 5);
+            _controlsTable.Controls.Add(c_IncludeAudioCheckBox, 1, 6);
             _controlsTable.Controls.Add(c_InputFileTextBox, 1, 0);
             _controlsTable.Controls.Add(c_TargetSizeInput, 1, 2);
             _controlsTable.Controls.Add(c_ToleranceInput, 1, 3);
@@ -77,14 +81,15 @@
             _controlsTable.Controls.Add(label2, 0, 0);
             _controlsTable.Location = new Point(201, 3);
             _controlsTable.Name = "_controlsTable";
-            _controlsTable.RowCount = 6;
-            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
-            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
-            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
-            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
-            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
-            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
-            _controlsTable.Size = new Size(609, 278);
+            _controlsTable.RowCount = 7;
+            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 14.285714F));
+            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 14.285714F));
+            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 14.285714F));
+            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 14.285714F));
+            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 14.285714F));
+            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 14.285714F));
+            _controlsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 14.285714F));
+            _controlsTable.Size = new Size(609, 324);
             _controlsTable.TabIndex = 9;
             // 
             // c_OutputFileTextBox
@@ -167,9 +172,20 @@
             label6.TabIndex = 8;
             label6.Text = "Quality preset";
             label6.TextAlign = ContentAlignment.MiddleLeft;
-            // 
+            //
+            // label7
+            //
+            label7.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            label7.AutoSize = true;
+            label7.BackColor = Color.Transparent;
+            label7.Name = "label7";
+            label7.Size = new Size(82, 15);
+            label7.TabIndex = 16;
+            label7.Text = "Audio";
+            label7.TextAlign = ContentAlignment.MiddleLeft;
+            //
             // c_QualityPresetComboBox
-            // 
+            //
             c_QualityPresetComboBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             c_QualityPresetComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             c_QualityPresetComboBox.FlatStyle = FlatStyle.System;
@@ -179,7 +195,20 @@
             c_QualityPresetComboBox.Size = new Size(415, 23);
             c_QualityPresetComboBox.TabIndex = 9;
             c_QualityPresetComboBox.Tag = "toggleable";
-            // 
+            //
+            // c_IncludeAudioCheckBox
+            //
+            c_IncludeAudioCheckBox.Anchor = AnchorStyles.Left;
+            c_IncludeAudioCheckBox.AutoSize = true;
+            c_IncludeAudioCheckBox.Checked = true;
+            c_IncludeAudioCheckBox.CheckState = CheckState.Checked;
+            c_IncludeAudioCheckBox.Name = "c_IncludeAudioCheckBox";
+            c_IncludeAudioCheckBox.Size = new Size(174, 19);
+            c_IncludeAudioCheckBox.TabIndex = 15;
+            c_IncludeAudioCheckBox.Tag = "toggleable";
+            c_IncludeAudioCheckBox.Text = "Include original audio";
+            c_IncludeAudioCheckBox.UseVisualStyleBackColor = true;
+            //
             // c_InputFileTextBox
             // 
             c_InputFileTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
@@ -260,7 +289,7 @@
             // c_MainButton
             // 
             c_MainButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            c_MainButton.Location = new Point(3, 287);
+            c_MainButton.Location = new Point(3, 333);
             c_MainButton.Name = "c_MainButton";
             c_MainButton.Size = new Size(807, 32);
             c_MainButton.TabIndex = 10;
@@ -300,7 +329,7 @@
             Controls.Add(c_MainButton);
             Controls.Add(_controlsTable);
             Name = "EncodingQueuePanel";
-            Size = new Size(813, 322);
+            Size = new Size(813, 368);
             _controlsTable.ResumeLayout(false);
             _controlsTable.PerformLayout();
             ((ISupportInitialize)c_TargetSizeInput).EndInit();
@@ -320,7 +349,9 @@
         private Label label4;
         private Label label5;
         private Label label6;
+        private Label label7;
         private ComboBox c_QualityPresetComboBox;
+        private CheckBox c_IncludeAudioCheckBox;
         private TextBox c_InputFileTextBox;
         private NumericUpDownEx c_TargetSizeInput;
         private NumericUpDownEx c_ToleranceInput;
