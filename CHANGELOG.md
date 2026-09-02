@@ -1,3 +1,17 @@
+# 09/01/2026
+
+## 3.3.0
+
+- Improved target-size accuracy by measuring preserved audio, encoded video packets, and container overhead during bitrate refinement
+- Changed target-size units to decimal megabytes so configured limits match common upload-service limits
+- Preserved every compatible source audio stream without re-encoding and added an option to completely omit audio
+- Added clear errors when original audio cannot be preserved in MP4 or leaves insufficient room for viable video
+- Added an experimental AV1 quality preset that prefers SVT-AV1 and falls back to libaom when necessary
+- Preserved supported source bit depth, chroma format, color information, chapters, and metadata more consistently
+- Made lossless-remux and encoded outputs apply the same audio, chapter, and metadata policy
+- Changed automatic FFmpeg installation to download the latest Essentials build and verify its rolling SHA-256 checksum
+- Added real-media integration coverage and reproducible video-quality comparison tooling
+
 # 08/17/2026
 
 ## 3.2.6
