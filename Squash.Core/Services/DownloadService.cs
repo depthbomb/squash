@@ -1,4 +1,5 @@
 using Caprine.FilePath;
+using System.Security.Cryptography;
 
 namespace Squash.Core.Services;
 
@@ -56,6 +57,17 @@ public class DownloadService
         {
             destinationPath.Unlink(true);
             throw;
+        }
+    }
+
+    public static async Task VerifySha256Async(FilePath filePath, string expectedHash, CancellationToken ct = default)
+    {
+        await using var stream = filePath.Open(FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
+        var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct)).ToLowerInvariant();
+        if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"The downloaded FFmpeg archive failed SHA-256 verification. Expected {expectedHash}, received {actualHash}.");
         }
     }
 }

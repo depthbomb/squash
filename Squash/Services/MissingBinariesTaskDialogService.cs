@@ -3,6 +3,7 @@
 public class MissingBinariesTaskDialogService
 {
     private const string DownloadUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z";
+    private const string ChecksumUrl = $"{DownloadUrl}.sha256";
 
     private readonly DownloadService _downloader;
     private readonly ExtractService  _extractor;
@@ -44,7 +45,7 @@ public class MissingBinariesTaskDialogService
             Icon    = TaskDialogIcon.Error,
             Expander = new TaskDialogExpander
             {
-                Text = "Squash uses the third-party tools FFmpeg and FFprobe to work with video files. Without these, Squash cannot function.",
+                Text = "Squash uses the latest checksum-verified FFmpeg Essentials build for video encoding and probing. Without FFmpeg and FFprobe, Squash cannot function.",
             },
             Buttons =
             {
@@ -115,6 +116,7 @@ public class MissingBinariesTaskDialogService
         async Task DownloadAndExtractAsync()
         {
             var temp = FilePath.TempFile();
+            var checksumFile = FilePath.TempFile();
 
             void OnProgressChanged(object? sender, int progress)
             {
@@ -135,7 +137,23 @@ public class MissingBinariesTaskDialogService
 
             try
             {
+                downloadPage.Text = "Retrieving checksum...";
+
+                await _downloader.DownloadFileAsync(ChecksumUrl, checksumFile, cts.Token);
+
+                var expectedHash = (await File.ReadAllTextAsync(checksumFile.FullPath, cts.Token)).Trim();
+                if (expectedHash.Length != 64 || !expectedHash.All(Uri.IsHexDigit))
+                {
+                    throw new InvalidDataException("The FFmpeg checksum response was invalid.");
+                }
+
+                downloadPage.Text = "Downloading FFmpeg...";
+
                 await _downloader.DownloadFileAsync(DownloadUrl, temp, cts.Token);
+
+                downloadPage.Text = "Verifying download...";
+
+                await DownloadService.VerifySha256Async(temp, expectedHash, cts.Token);
 
                 downloadPage.Text = "Extracting...";
 
@@ -163,6 +181,7 @@ public class MissingBinariesTaskDialogService
             {
                 _downloader.ProgressChanged -= OnProgressChanged;
                 temp.Unlink(true);
+                checksumFile.Unlink(true);
             }
         }
     }
