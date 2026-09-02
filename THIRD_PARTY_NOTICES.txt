@@ -1,8 +1,19 @@
-This product includes FFmpeg.
+Squash can download the latest Gyan.dev FFmpeg Essentials build for Windows.
+The archive is verified against the build provider's matching SHA-256 file
+before extraction.
 
-FFmpeg is licensed under the GNU Lesser General Public License (LGPL) version 2.1 or later.
+That build enables GPL components, including libx264 and libx265, and is
+distributed under the GNU General Public License (GPL) version 3 or later.
 
-Source code for FFmpeg is available at:
-https://ffmpeg.org
+Build information, checksums, the current FFmpeg source revision, external-
+library versions, and source links:
+https://www.gyan.dev/ffmpeg/builds/
+
+FFmpeg license and compliance information:
+https://ffmpeg.org/legal.html
+
+The Essentials build may also contain permissively licensed libraries,
+including libaom. Applicable notices and license texts are included in the
+downloaded FFmpeg package.
 
 This software is not affiliated with or endorsed by the FFmpeg project.
