@@ -1,10 +1,10 @@
-using Caprine.FilePath;
-using Squash.Core.Exceptions;
-using Squash.Core.Extensions;
-using System.Diagnostics;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Caprine.FilePath;
+using System.Diagnostics;
+using System.Globalization;
+using Squash.Core.Extensions;
+using Squash.Core.Exceptions;
 
 namespace Squash.Core.Services;
 
@@ -26,6 +26,12 @@ public class ProgressEventArgs : EventArgs
 
 public class EncodeService(BinaryLocatorService binaryLocatorService)
 {
+    internal enum AudioMode
+    {
+        None,
+        Copy
+    }
+
     public record EncodeResult(
         bool Success,
         FilePath FilePath,
@@ -34,10 +40,6 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         int Iteration,
         double VideoBitrateKbps,
         double ElapsedSeconds);
-
-    public event EventHandler? Started;
-    public event EventHandler<ProgressEventArgs>? Progress;
-    public event EventHandler<EncodeResult?>? Finished;
 
     internal sealed record VideoStreamInfo(
         string CodecName,
@@ -49,47 +51,74 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         string? ColorSpace,
         string? ColorTransfer,
         string? ColorPrimaries,
+        string? ChromaLocation,
         double? BitrateKbps);
 
-    internal sealed record AudioStreamInfo(string CodecName, int Channels, double? BitrateKbps);
+    internal sealed record AudioStreamInfo(
+        int Index,
+        string CodecName,
+        int Channels,
+        string? ChannelLayout,
+        double? BitrateKbps);
 
     internal sealed record MediaInfo(
         double DurationSeconds,
         double? FormatBitrateKbps,
         VideoStreamInfo Video,
-        AudioStreamInfo? Audio);
+        IReadOnlyList<AudioStreamInfo> AudioStreams);
 
-    internal enum AudioMode
-    {
-        None,
-        Copy,
-        Encode
-    }
+    internal sealed record AudioPlan(AudioMode Mode, long FixedBytes, int EstimatedBitrateKbps);
 
-    internal sealed record AudioPlan(AudioMode Mode, int EstimatedBitrateKbps);
-
-    private record Sample(double BitrateKbps, long FileSize, int Iteration);
+    private record Sample(double BitrateKbps, long FileSize, long VideoPayloadBytes, int Iteration);
 
     private record ProcessResult(int ExitCode, string StandardError);
 
-    private const long BytesPerMegabyte = 1024L * 1024L;
+    private const long BytesPerMegabyte = 1_000_000L;
     private const int MinVideoBitrate = 100;
-    private const int MinAudioBitrate = 32;
-    private const double TargetUtilization = 0.99;
+    private const long MinimumMuxReserveBytes = 64L * 1024L;
+    private const long MinimumRefinementSafetyBytes = 4L * 1024L;
+    private const double InitialMuxReserveFraction = 0.005;
+    private const double RefinementSafetyFraction = 0.0005;
+
+    public event EventHandler? Started;
+    public event EventHandler<ProgressEventArgs>? Progress;
+    public event EventHandler<EncodeResult?>? Finished;
 
     private CancellationTokenSource? _cts;
 
-    public async Task<EncodeResult> ResizeVideoToTargetAsync(FilePath inputFile,
-                                                             FilePath outputFile,
-                                                             int targetSizeMb,
-                                                             double tolerancePercent,
-                                                             int maxIterations,
-                                                             int qualityPreset)
+    public Task<EncodeResult> ResizeVideoToTargetAsync(FilePath inputFile,
+                                                       FilePath outputFile,
+                                                       int targetSizeMb,
+                                                       double tolerancePercent,
+                                                       int maxIterations,
+                                                       int qualityPreset,
+                                                       bool includeAudio = true)
+    {
+        if (targetSizeMb < 1)
+            throw new ArgumentException("Target size must be greater than 0.");
+
+        return ResizeVideoToTargetBytesAsync(
+            inputFile,
+            outputFile,
+            checked(targetSizeMb * BytesPerMegabyte),
+            tolerancePercent,
+            maxIterations,
+            qualityPreset,
+            includeAudio);
+    }
+
+    public async Task<EncodeResult> ResizeVideoToTargetBytesAsync(FilePath inputFile,
+                                                                  FilePath outputFile,
+                                                                  long targetSizeBytes,
+                                                                  double tolerancePercent,
+                                                                  int maxIterations,
+                                                                  int qualityPreset,
+                                                                  bool includeAudio = true)
     {
         if (!inputFile.Exists)
             throw new ArgumentException("Input file does not exist.");
 
-        if (targetSizeMb < 1)
+        if (targetSizeBytes <= 0)
             throw new ArgumentException("Target size must be greater than 0.");
 
         if (tolerancePercent is < 0.0 or > 50.0)
@@ -98,8 +127,8 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         if (maxIterations <= 0)
             throw new ArgumentException("Max iterations must be greater than 0.");
 
-        if (qualityPreset is < 1 or > 4)
-            throw new ArgumentException("Quality preset must be between 1 and 4.");
+        if (qualityPreset is < 1 or > 5)
+            throw new ArgumentException("Quality preset must be between 1 and 5.");
 
         if (inputFile.FullPath == outputFile.FullPath)
             throw new ArgumentException("Output file cannot be the same as input file.");
@@ -119,7 +148,6 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             var startedAt = Stopwatch.GetTimestamp();
             var ffprobePath = await RequireBinaryPathAsync("ffprobe", "FFprobe was not found.").ConfigureAwait(false);
             var ffmpegPath = await RequireBinaryPathAsync("ffmpeg", "FFmpeg was not found.").ConfigureAwait(false);
-            var targetSizeBytes = targetSizeMb * BytesPerMegabyte;
             var currentVideoSize = inputFile.FileInfo().Length;
 
             VideoSizeBelowTargetSizeException.ThrowIf(currentVideoSize <= targetSizeBytes, "Video file size is at or below target file size.");
@@ -138,19 +166,30 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                 targetSizeBytes,
                 mediaInfo,
                 startedAt,
+                includeAudio,
                 ct).ConfigureAwait(false);
             if (remuxedSize is not null)
             {
                 completedResult = remuxedSize;
+
                 return remuxedSize;
             }
 
-            var audioPlan = SelectAudioPlan(mediaInfo, targetSizeBytes);
+            var encoderName = await ResolveEncoderNameAsync(ffmpegPath, qualityPreset, ct).ConfigureAwait(false);
+
+            var audioPlan = await PrepareAudioPlanAsync(
+                ffmpegPath,
+                inputFile,
+                mediaInfo,
+                targetSizeBytes,
+                includeAudio,
+                ct).ConfigureAwait(false);
+            var totalAudioBitrate = mediaInfo.AudioStreams.Sum(stream => stream.BitrateKbps ?? 0.0);
             var sourceBitrate = mediaInfo.Video.BitrateKbps ??
                                 Math.Max(0.0, (mediaInfo.FormatBitrateKbps ?? currentVideoSize * 8.0 / duration / 1_000.0) -
-                                              (mediaInfo.Audio?.BitrateKbps ?? 0.0));
+                                              totalAudioBitrate);
 
-            double targetBitrate = CalculateTargetBitrate(duration, targetSizeBytes, audioPlan.EstimatedBitrateKbps);
+            double targetBitrate = CalculateTargetBitrate(duration, targetSizeBytes, audioPlan.FixedBytes);
             double minBitrate = MinVideoBitrate;
             double maxBitrate = targetBitrate * 2;
 
@@ -191,6 +230,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                         audioPlan,
                         mediaInfo,
                         qualityPreset,
+                        encoderName,
                         duration,
                         iteration,
                         maxIterations,
@@ -200,6 +240,11 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                     ).ConfigureAwait(false);
 
                     long newFileSize = tempOutput.FileInfo().Length;
+                    var videoPayloadBytes = await GetPacketPayloadSizeAsync(
+                        ffprobePath,
+                        tempOutput,
+                        "v:0",
+                        ct).ConfigureAwait(false);
 
                     lastEncodedSize = newFileSize;
 
@@ -207,7 +252,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                     {
                         if (bestUnder == null || newFileSize > bestUnder.FileSize)
                         {
-                            bestUnder = new Sample(currentBitrate, newFileSize, iteration);
+                            bestUnder = new Sample(currentBitrate, newFileSize, videoPayloadBytes, iteration);
                             File.Move(tempOutput.FullPath, bestUnderOutput.FullPath, overwrite: true);
                         }
 
@@ -235,7 +280,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                     {
                         if (bestOver == null || newFileSize < bestOver.FileSize)
                         {
-                            bestOver = new Sample(currentBitrate, newFileSize, iteration);
+                            bestOver = new Sample(currentBitrate, newFileSize, videoPayloadBytes, iteration);
                         }
 
                         maxBitrate = currentBitrate;
@@ -245,6 +290,8 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                         currentBitrate: currentBitrate,
                         currentSize: newFileSize,
                         targetSize: targetSizeBytes,
+                        duration: duration,
+                        videoPayloadBytes: videoPayloadBytes,
                         minBitrate: minBitrate,
                         maxBitrate: maxBitrate,
                         under: bestUnder,
@@ -308,6 +355,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                                                             long targetSizeBytes,
                                                             MediaInfo mediaInfo,
                                                             long startedAt,
+                                                            bool includeAudio,
                                                             CancellationToken ct)
     {
         var temporaryOutput = CreateTemporaryMp4Path();
@@ -319,14 +367,26 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             {
                 "-hide_banner", "-loglevel", "error", "-y",
                 "-i", inputFile.FullPath,
-                "-map", "0:v:0",
-                "-map", "0:a:0?",
+                "-map", "0:v:0"
+            };
+            if (includeAudio)
+            {
+                args.AddRange(["-map", "0:a?"]);
+            }
+            else
+            {
+                args.Add("-an");
+            }
+
+            args.AddRange([
                 "-map_metadata", "0",
+                "-map_metadata:s:v:0", "0:s:v:0",
                 "-map_chapters", "0",
                 "-c", "copy",
-                "-movflags", "+faststart",
+                "-movflags", "+faststart+write_colr",
                 temporaryOutput.AsPosix()
-            };
+            ]);
+
             var processResult = await ExecuteProcessAsync(ffmpegPath, args, null, ct).ConfigureAwait(false);
             if (processResult.ExitCode != 0 || !temporaryOutput.Exists)
             {
@@ -360,7 +420,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         var args = new List<string>
         {
             "-v", "error",
-            "-show_entries", "format=duration,bit_rate:stream=codec_type,codec_name,width,height,pix_fmt,avg_frame_rate,bit_rate,channels,color_range,color_space,color_transfer,color_primaries",
+            "-show_entries", "format=duration,bit_rate:stream=index,codec_type,codec_name,width,height,pix_fmt,avg_frame_rate,bit_rate,channels,channel_layout,color_range,color_space,color_transfer,color_primaries,chroma_location",
             "-of", "json",
             inputFile.FullPath
         };
@@ -385,7 +445,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         }
 
         VideoStreamInfo? video = null;
-        AudioStreamInfo? audio = null;
+        var audioStreams = new List<AudioStreamInfo>();
         if (root.TryGetProperty("streams", out var streams))
         {
             foreach (var stream in streams.EnumerateArray())
@@ -403,14 +463,17 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                         ColorSpace: GetString(stream, "color_space"),
                         ColorTransfer: GetString(stream, "color_transfer"),
                         ColorPrimaries: GetString(stream, "color_primaries"),
+                        ChromaLocation: GetString(stream, "chroma_location"),
                         BitrateKbps: GetBitrateKbps(stream));
                 }
-                else if (audio is null && codecType == "audio")
+                else if (codecType == "audio")
                 {
-                    audio = new AudioStreamInfo(
+                    audioStreams.Add(new AudioStreamInfo(
+                        Index: GetInt32(stream, "index"),
                         CodecName: GetString(stream, "codec_name") ?? "unknown",
                         Channels: GetInt32(stream, "channels"),
-                        BitrateKbps: GetBitrateKbps(stream));
+                        ChannelLayout: GetString(stream, "channel_layout"),
+                        BitrateKbps: GetBitrateKbps(stream)));
                 }
             }
         }
@@ -419,7 +482,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             DurationSeconds: duration,
             FormatBitrateKbps: GetBitrateKbps(format),
             Video: video ?? throw new InvalidOperationException("FFprobe did not find a video stream."),
-            Audio: audio);
+            AudioStreams: audioStreams);
 
         static string? GetString(JsonElement element, string name) =>
             element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
@@ -436,6 +499,119 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             TryGetDouble(element, "bit_rate", out var bitrate) ? bitrate / 1_000.0 : null;
     }
 
+    private static async Task<AudioPlan> PrepareAudioPlanAsync(string ffmpegPath,
+                                                               FilePath inputFile,
+                                                               MediaInfo mediaInfo,
+                                                               long targetSizeBytes,
+                                                               bool includeAudio,
+                                                               CancellationToken ct)
+    {
+        if (!includeAudio || mediaInfo.AudioStreams.Count == 0)
+        {
+            return new AudioPlan(AudioMode.None, 0, 0);
+        }
+
+        var temporaryOutput = CreateTemporaryMp4Path();
+        var args = new List<string>
+        {
+            "-hide_banner", "-loglevel", "error", "-y",
+            "-i", inputFile.FullPath,
+            "-vn",
+            "-map", "0:a?",
+            "-map_metadata", "0",
+            "-map_chapters", "0",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            temporaryOutput.AsPosix()
+        };
+
+        try
+        {
+            var result = await ExecuteProcessAsync(ffmpegPath, args, null, ct).ConfigureAwait(false);
+            if (result.ExitCode != 0 || !temporaryOutput.Exists)
+            {
+                var streams = string.Join(", ", mediaInfo.AudioStreams.Select(stream => $"#{stream.Index} {stream.CodecName}"));
+                var detail = result.StandardError.Trim();
+                var message = $"The selected MP4 output cannot preserve all audio streams without re-encoding ({streams}).";
+                if (!detail.IsNullOrWhiteSpace())
+                {
+                    message += $" {detail}";
+                }
+
+                throw new IncompatibleAudioStreamsException(message);
+            }
+
+            return SelectAudioPlan(mediaInfo, targetSizeBytes, temporaryOutput.FileInfo().Length);
+        }
+        finally
+        {
+            temporaryOutput.Unlink(true);
+        }
+    }
+
+    private static async Task<long> GetPacketPayloadSizeAsync(string ffprobePath,
+                                                              FilePath inputFile,
+                                                              string streamSpecifier,
+                                                              CancellationToken ct)
+    {
+        var args = new List<string>
+        {
+            "-v", "error",
+            "-select_streams", streamSpecifier,
+            "-show_entries", "packet=size",
+            "-of", "csv=p=0",
+            inputFile.FullPath
+        };
+        long totalBytes = 0;
+        var result = await ExecuteProcessAsync(ffprobePath, args, line =>
+        {
+            if (long.TryParse(line.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var packetSize))
+            {
+                totalBytes = checked(totalBytes + packetSize);
+            }
+
+            return Task.CompletedTask;
+        }, ct).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException($"FFprobe failed to measure encoded video payload. {result.StandardError.Trim()}");
+        }
+
+        return totalBytes;
+    }
+
+    private static async Task<string> ResolveEncoderNameAsync(string ffmpegPath, int qualityPreset, CancellationToken ct)
+    {
+        var preferredEncoders = qualityPreset == 5
+            ? new[] { "libsvtav1", "libaom-av1" }
+            : [GetEncoderName(qualityPreset)];
+        var availableEncoders = new HashSet<string>(StringComparer.Ordinal);
+        var result = await ExecuteProcessAsync(
+            ffmpegPath,
+            ["-hide_banner", "-encoders"],
+            line =>
+            {
+                foreach (var encoder in preferredEncoders)
+                {
+                    if (line.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains(encoder, StringComparer.Ordinal))
+                    {
+                        availableEncoders.Add(encoder);
+                    }
+                }
+
+                return Task.CompletedTask;
+            },
+            ct).ConfigureAwait(false);
+        var selectedEncoder = preferredEncoders.FirstOrDefault(availableEncoders.Contains);
+        if (result.ExitCode != 0 || selectedEncoder is null)
+        {
+            throw new InvalidOperationException(
+                $"The selected quality preset requires one of these FFmpeg encoders: {string.Join(", ", preferredEncoders)}.");
+        }
+
+        return selectedEncoder;
+    }
+
     private async Task EncodeVideoAsync(string ffmpegPath,
                                         FilePath inputFile,
                                         FilePath outputFile,
@@ -443,6 +619,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                                         AudioPlan audioPlan,
                                         MediaInfo mediaInfo,
                                         int qualityPreset,
+                                        string encoderName,
                                         double duration,
                                         int iteration,
                                         int maxIterations,
@@ -458,7 +635,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             "-b:v", string.Format(CultureInfo.InvariantCulture, "{0:F0}k", videoBitrate)
         };
 
-        commonArgs.AddRange(GetEncodeSettings(qualityPreset, mediaInfo));
+        commonArgs.AddRange(GetEncodeSettings(qualityPreset, mediaInfo, encoderName));
 
         if (runFirstPass)
         {
@@ -474,7 +651,10 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         var secondPassArgs = new List<string>(commonArgs);
         AddAudioArguments(secondPassArgs, audioPlan);
         secondPassArgs.AddRange([
-            "-map_metadata", "0", "-fps_mode:v", "passthrough",
+            "-map_metadata", "0",
+            "-map_metadata:s:v:0", "0:s:v:0",
+            "-map_chapters", "0",
+            "-fps_mode:v", "passthrough",
             "-pass", "2", "-passlogfile", passLogPrefix,
             "-progress", "pipe:1", "-nostats", outputFile.AsPosix()
         ]);
@@ -616,37 +796,116 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         }
     }
 
-    internal static IEnumerable<string> GetEncodeSettings(int qualityPreset, MediaInfo mediaInfo)
+    internal static IEnumerable<string> GetEncodeSettings(
+        int qualityPreset,
+        MediaInfo mediaInfo,
+        string? encoderOverride = null)
     {
-        var useTenBit = ShouldUseTenBit(mediaInfo.Video);
-        var (codec, preset) = qualityPreset switch
+        var codec = encoderOverride ?? GetEncoderName(qualityPreset);
+        var preset = qualityPreset switch
         {
-            1 => ("libx264", "medium"),
-            2 => ("libx265", "medium"),
-            3 => ("libx265", "slow"),
-            4 => ("libx265", "veryslow"),
+            1 or 2 => "medium",
+            3 => "slow",
+            4 => "veryslow",
+            5 => "6",
             _ => throw new ArgumentException($"Unexpected quality preset: {qualityPreset}")
         };
-
-        var profile = codec == "libx265"
-            ? useTenBit ? "main10" : "main"
-            : useTenBit ? "high10" : "high";
+        var pixelFormat = SelectOutputPixelFormat(codec, mediaInfo.Video);
         var settings = new List<string>
         {
             "-c:v", codec,
-            "-preset", preset,
-            "-profile:v", profile,
-            "-movflags", "+faststart",
-            "-pix_fmt", useTenBit ? "yuv420p10le" : "yuv420p"
+            "-movflags", "+faststart+write_colr",
+            "-pix_fmt", pixelFormat
         };
 
         if (codec == "libx264")
         {
+            settings.AddRange(["-preset", preset]);
+            settings.AddRange(["-profile:v", GetX264Profile(pixelFormat)]);
             settings.AddRange(["-fastfirstpass", "1"]);
+        }
+        else if (codec == "libx265")
+        {
+            settings.AddRange(["-preset", preset]);
+            settings.AddRange(["-tag:v", "hvc1"]);
+        }
+        else if (codec == "libsvtav1")
+        {
+            settings.AddRange(["-preset", preset, "-tag:v", "av01", "-svtav1-params", "tune=0"]);
+        }
+        else
+        {
+            settings.AddRange(["-cpu-used", "2", "-usage", "good", "-row-mt", "1", "-tag:v", "av01"]);
         }
 
         AddColorMetadata(settings, mediaInfo.Video);
+
         return settings;
+    }
+
+    internal static string SelectOutputPixelFormat(string encoder, VideoStreamInfo video)
+    {
+        var source = video.PixelFormat.ToLowerInvariant();
+        var highBitDepth = ShouldUseTenBit(video);
+        if (encoder == "libsvtav1")
+        {
+            return highBitDepth ? "yuv420p10le" : "yuv420p";
+        }
+
+        if (source.StartsWith("yuv420p", StringComparison.Ordinal) || source.StartsWith("yuva420p", StringComparison.Ordinal))
+        {
+            return highBitDepth ? NormalizeBitDepth(source, "yuv420p") : "yuv420p";
+        }
+
+        if (source.StartsWith("yuv422p", StringComparison.Ordinal) || source.StartsWith("yuva422p", StringComparison.Ordinal))
+        {
+            return highBitDepth ? NormalizeBitDepth(source, "yuv422p") : "yuv422p";
+        }
+
+        if (source.StartsWith("yuv444p", StringComparison.Ordinal) || source.StartsWith("yuva444p", StringComparison.Ordinal))
+        {
+            return highBitDepth ? NormalizeBitDepth(source, "yuv444p") : "yuv444p";
+        }
+
+        if (encoder == "libx265" && source.StartsWith("gbrp", StringComparison.Ordinal))
+        {
+            return highBitDepth ? NormalizeBitDepth(source, "gbrp") : "gbrp";
+        }
+
+        return highBitDepth ? "yuv420p10le" : "yuv420p";
+
+        static string NormalizeBitDepth(string source, string prefix)
+        {
+            if (source.Contains("12", StringComparison.Ordinal))
+            {
+                return $"{prefix}12le";
+            }
+
+            return $"{prefix}10le";
+        }
+    }
+
+    private static string GetEncoderName(int qualityPreset) => qualityPreset switch
+    {
+        1 => "libx264",
+        2 or 3 or 4 => "libx265",
+        5 => "libsvtav1",
+        _ => throw new ArgumentException($"Unexpected quality preset: {qualityPreset}")
+    };
+
+    private static string GetX264Profile(string pixelFormat)
+    {
+        if (pixelFormat.StartsWith("yuv444", StringComparison.Ordinal))
+        {
+            return "high444";
+        }
+
+        if (pixelFormat.StartsWith("yuv422", StringComparison.Ordinal))
+        {
+            return "high422";
+        }
+
+        return pixelFormat.Contains("10", StringComparison.Ordinal) ? "high10" : "high";
     }
 
     private static void AddAudioArguments(List<string> arguments, AudioPlan audioPlan)
@@ -657,10 +916,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                 arguments.Add("-an");
                 break;
             case AudioMode.Copy:
-                arguments.AddRange(["-map", "0:a:0?", "-c:a", "copy"]);
-                break;
-            case AudioMode.Encode:
-                arguments.AddRange(["-map", "0:a:0?", "-c:a", "aac", "-b:a", $"{audioPlan.EstimatedBitrateKbps}k"]);
+                arguments.AddRange(["-map", "0:a?", "-c:a", "copy"]);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(audioPlan));
@@ -673,6 +929,8 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         AddIfKnown("-colorspace", video.ColorSpace);
         AddIfKnown("-color_trc", video.ColorTransfer);
         AddIfKnown("-color_primaries", video.ColorPrimaries);
+        AddIfKnown("-chroma_sample_location", video.ChromaLocation);
+
         return;
 
         void AddIfKnown(string option, string? value)
@@ -744,66 +1002,80 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
     }
 
-    private static double CalculateTargetBitrate(double duration, long targetSizeBytes, int audioBitrate)
+    internal static double CalculateTargetBitrate(double duration, long targetSizeBytes, long fixedBytes)
     {
         if (duration <= 0.0)
         {
             return MinVideoBitrate;
         }
 
-        return Math.Max(MinVideoBitrate, targetSizeBytes * 8.0 / duration / 1_000.0 * TargetUtilization - audioBitrate);
+        var availableBytes = Math.Max(0L, targetSizeBytes - fixedBytes - CalculateInitialMuxReserve(targetSizeBytes));
+
+        return Math.Max(MinVideoBitrate, availableBytes * 8.0 / duration / 1_000.0);
     }
 
-    internal static AudioPlan SelectAudioPlan(MediaInfo mediaInfo, long targetSizeBytes)
+    internal static AudioPlan SelectAudioPlan(MediaInfo mediaInfo, long targetSizeBytes, long fixedBytes)
     {
-        if (mediaInfo.Audio is null)
+        if (mediaInfo.AudioStreams.Count == 0)
         {
-            return new AudioPlan(AudioMode.None, 0);
+            return new AudioPlan(AudioMode.None, 0, 0);
         }
 
-        var totalBitrate = targetSizeBytes * 8.0 / mediaInfo.DurationSeconds / 1_000.0 * TargetUtilization;
-        var maxAudioBitrate = Math.Max(MinAudioBitrate, (int)Math.Floor(totalBitrate - MinVideoBitrate));
-        var preferredBitrate = mediaInfo.Audio.Channels switch
+        var minimumVideoBytes = (long)Math.Ceiling(MinVideoBitrate * 1_000.0 * mediaInfo.DurationSeconds / 8.0);
+        var requiredBytes = checked(fixedBytes + CalculateInitialMuxReserve(targetSizeBytes) + minimumVideoBytes);
+        if (requiredBytes >= targetSizeBytes)
         {
-            <= 1 => 64,
-            2 => 128,
-            _ => 192
-        };
-        if (mediaInfo.Audio.BitrateKbps is > 0)
-        {
-            preferredBitrate = Math.Min(preferredBitrate, (int)Math.Ceiling(mediaInfo.Audio.BitrateKbps.Value));
+            throw new UnableToReachTargetSizeException(
+                $"The preserved audio streams and minimum viable video require at least {requiredBytes.ToFileSizeString()}, " +
+                $"which does not fit the {targetSizeBytes.ToFileSizeString()} target.");
         }
 
-        var selectedBitrate = Math.Clamp(preferredBitrate, MinAudioBitrate, maxAudioBitrate);
-        var canCopy = mediaInfo.Audio.CodecName.Equals("aac", StringComparison.OrdinalIgnoreCase) &&
-                      mediaInfo.Audio.BitrateKbps is > 0 &&
-                      mediaInfo.Audio.BitrateKbps <= selectedBitrate;
+        var estimatedBitrate = mediaInfo.DurationSeconds > 0.0
+            ? (int)Math.Ceiling(fixedBytes * 8.0 / mediaInfo.DurationSeconds / 1_000.0)
+            : 0;
 
-        return canCopy
-            ? new AudioPlan(AudioMode.Copy, (int)Math.Ceiling(mediaInfo.Audio.BitrateKbps!.Value))
-            : new AudioPlan(AudioMode.Encode, selectedBitrate);
+        return new AudioPlan(AudioMode.Copy, fixedBytes, estimatedBitrate);
     }
 
     private static double EstimateNextBitrate(double currentBitrate,
                                               long currentSize,
                                               long targetSize,
+                                              double duration,
+                                              long videoPayloadBytes,
                                               double minBitrate,
                                               double maxBitrate,
                                               Sample? under,
                                               Sample? over)
     {
+        var effectiveTarget = Math.Max(1L, targetSize - CalculateRefinementSafety(targetSize));
         double nextBitrate = (under != null && over != null)
             ? over.FileSize - under.FileSize > 0
-                ? under.BitrateKbps + (targetSize - under.FileSize) * (over.BitrateKbps - under.BitrateKbps) / (over.FileSize - under.FileSize)
+                ? under.BitrateKbps + (effectiveTarget - under.FileSize) * (over.BitrateKbps - under.BitrateKbps) / (over.FileSize - under.FileSize)
                 : (minBitrate + maxBitrate) / 2.0
-            : currentSize > 0
-                ? currentBitrate * ((double)targetSize / currentSize)
+            : videoPayloadBytes > 0
+                ? CalculatePayloadAdjustedBitrate()
                 : (minBitrate + maxBitrate) / 2.0;
 
         nextBitrate = Math.Clamp(nextBitrate, minBitrate, maxBitrate);
 
         return Math.Abs(nextBitrate - currentBitrate) < 1.0 ? (minBitrate + maxBitrate) / 2.0 : nextBitrate;
+
+        double CalculatePayloadAdjustedBitrate()
+        {
+            var residualBytes = Math.Max(0L, currentSize - videoPayloadBytes);
+            var desiredVideoBytes = Math.Max(1L, effectiveTarget - residualBytes);
+            var payloadRatioBitrate = currentBitrate * desiredVideoBytes / videoPayloadBytes;
+            var absoluteBudgetBitrate = desiredVideoBytes * 8.0 / Math.Max(duration, 0.001) / 1_000.0;
+
+            return Math.Min(payloadRatioBitrate, absoluteBudgetBitrate * 1.02);
+        }
     }
+
+    private static long CalculateInitialMuxReserve(long targetSizeBytes) =>
+        Math.Max(MinimumMuxReserveBytes, (long)Math.Ceiling(targetSizeBytes * InitialMuxReserveFraction));
+
+    private static long CalculateRefinementSafety(long targetSizeBytes) =>
+        Math.Max(MinimumRefinementSafetyBytes, (long)Math.Ceiling(targetSizeBytes * RefinementSafetyFraction));
 
     private static string FormatDuration(double totalSeconds)
     {
