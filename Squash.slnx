@@ -3,4 +3,5 @@
   <Project Path="Squash.Core/Squash.Core.csproj" />
   <Project Path="Squash.Lib/Squash.Lib.csproj" />
   <Project Path="Squash.Core.Tests/Squash.Core.Tests.csproj" />
+  <Project Path="Squash.Tools/Squash.Tools.csproj" />
 </Solution>
