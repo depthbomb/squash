@@ -79,6 +79,17 @@ public sealed class EncodeServiceTests
         Assert.AreEqual(64, plan.EstimatedBitrateKbps);
     }
 
+    [TestMethod]
+    public void H264UsesFastFirstPass()
+    {
+        var settings = EncodeService.GetEncodeSettings(1, CreateMedia(audio: null)).ToArray();
+
+        var optionIndex = Array.IndexOf(settings, "-fastfirstpass");
+
+        Assert.IsGreaterThanOrEqualTo(0, optionIndex);
+        Assert.AreEqual("1", settings[optionIndex + 1]);
+    }
+
     private static EncodeService.MediaInfo CreateMedia(EncodeService.AudioStreamInfo? audio) =>
         new(60, 2_000, CreateVideo(), audio);
 

@@ -169,6 +169,8 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
             var tempOutput = CreateTemporaryMp4Path();
             var bestUnderOutput = CreateTemporaryMp4Path();
+            // Analysis is input- and preset-specific, so refinement passes can reuse it at a new target bitrate.
+            var passLogPrefix = Path.Combine(Path.GetTempPath(), $"squash-pass-{Guid.NewGuid():N}");
 
             try
             {
@@ -192,6 +194,8 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                         duration,
                         iteration,
                         maxIterations,
+                        passLogPrefix,
+                        runFirstPass: iteration == 1,
                         ct
                     ).ConfigureAwait(false);
 
@@ -280,6 +284,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
             {
                 tempOutput.Unlink(true);
                 bestUnderOutput.Unlink(true);
+                DeletePassLogFiles(passLogPrefix);
             }
         }
         finally
@@ -441,6 +446,8 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                                         double duration,
                                         int iteration,
                                         int maxIterations,
+                                        string passLogPrefix,
+                                        bool runFirstPass,
                                         CancellationToken ct)
     {
         var commonArgs = new List<string>
@@ -453,48 +460,33 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
         commonArgs.AddRange(GetEncodeSettings(qualityPreset, mediaInfo));
 
-        var passLogPrefix = Path.Combine(Path.GetTempPath(), $"squash-pass-{Guid.NewGuid():N}");
-
-        try
+        if (runFirstPass)
         {
             var firstPassArgs = new List<string>(commonArgs);
             firstPassArgs.AddRange([
                 "-an", "-pass", "1", "-passlogfile", passLogPrefix,
                 "-f", "null", "-progress", "pipe:1", "-nostats", "NUL"
             ]);
-            await RunPassAsync(firstPassArgs, passNumber: 1).ConfigureAwait(false);
 
-            var secondPassArgs = new List<string>(commonArgs);
-            AddAudioArguments(secondPassArgs, audioPlan);
-            secondPassArgs.AddRange([
-                "-map_metadata", "0", "-fps_mode:v", "passthrough",
-                "-pass", "2", "-passlogfile", passLogPrefix,
-                "-progress", "pipe:1", "-nostats", outputFile.AsPosix()
-            ]);
-            await RunPassAsync(secondPassArgs, passNumber: 2).ConfigureAwait(false);
+            await RunPassAsync(firstPassArgs, passNumber: 1, passCount: 2).ConfigureAwait(false);
         }
-        finally
-        {
-            foreach (var passLogFile in Directory.EnumerateFiles(Path.GetTempPath(), $"{Path.GetFileName(passLogPrefix)}*"))
-            {
-                try
-                {
-                    File.Delete(passLogFile);
-                }
-                catch (IOException)
-                {
-                    // A failed cleanup must not hide the encode result.
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    // A failed cleanup must not hide the encode result.
-                }
-            }
-        }
+
+        var secondPassArgs = new List<string>(commonArgs);
+        AddAudioArguments(secondPassArgs, audioPlan);
+        secondPassArgs.AddRange([
+            "-map_metadata", "0", "-fps_mode:v", "passthrough",
+            "-pass", "2", "-passlogfile", passLogPrefix,
+            "-progress", "pipe:1", "-nostats", outputFile.AsPosix()
+        ]);
+
+        var secondPassNumber = runFirstPass ? 2 : 1;
+        var passCount = runFirstPass ? 2 : 1;
+
+        await RunPassAsync(secondPassArgs, secondPassNumber, passCount).ConfigureAwait(false);
 
         Progress?.Invoke(this, new ProgressEventArgs(iteration, maxIterations, 100, "Iteration complete"));
 
-        async Task RunPassAsync(List<string> args, int passNumber)
+        async Task RunPassAsync(List<string> args, int passNumber, int passCount)
         {
             var progressData = new Dictionary<string, string>(StringComparer.Ordinal);
             string? lastMsgLine = null;
@@ -522,9 +514,9 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                 if (key == "progress" && value == "continue")
                 {
                     var passPercent = ComputePercent(progressData, duration);
-                    var percent = (passNumber - 1) * 50 + passPercent / 2;
+                    var percent = ((passNumber - 1) * 100 + passPercent) / passCount;
                     var status = BuildProgressStatus(progressData, duration);
-                    var title = $"Pass {passNumber}/2{(status.IsNullOrWhiteSpace() ? "" : $": {status}")}";
+                    var title = $"Pass {passNumber}/{passCount}{(status.IsNullOrWhiteSpace() ? "" : $": {status}")}";
 
                     Progress?.Invoke(this, new ProgressEventArgs(iteration, maxIterations, percent, title));
                 }
@@ -545,6 +537,25 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
                 }
 
                 throw new InvalidOperationException(message);
+            }
+        }
+    }
+
+    private static void DeletePassLogFiles(string passLogPrefix)
+    {
+        foreach (var passLogFile in Directory.EnumerateFiles(Path.GetTempPath(), $"{Path.GetFileName(passLogPrefix)}*"))
+        {
+            try
+            {
+                File.Delete(passLogFile);
+            }
+            catch (IOException)
+            {
+                // A failed cleanup must not hide the encode result.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // A failed cleanup must not hide the encode result.
             }
         }
     }
@@ -605,7 +616,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
         }
     }
 
-    private static IEnumerable<string> GetEncodeSettings(int qualityPreset, MediaInfo mediaInfo)
+    internal static IEnumerable<string> GetEncodeSettings(int qualityPreset, MediaInfo mediaInfo)
     {
         var useTenBit = ShouldUseTenBit(mediaInfo.Video);
         var (codec, preset) = qualityPreset switch
@@ -631,7 +642,7 @@ public class EncodeService(BinaryLocatorService binaryLocatorService)
 
         if (codec == "libx264")
         {
-            settings.AddRange(["-fastfirstpass", "0"]);
+            settings.AddRange(["-fastfirstpass", "1"]);
         }
 
         AddColorMetadata(settings, mediaInfo.Video);
