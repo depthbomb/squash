@@ -7,4 +7,3 @@ release:
   installerCommand: iscc
   installerArgs: '/DMyAppVersion={Version} /O"{OutputDir}" "setup.iss"'
   installerPath: '{OutputDir}\squash-setup.exe'
-  updaterUpdateRequired: true
